@@ -12,6 +12,8 @@ JNIEXPORT jboolean JNICALL Java_Transcoder_verifyCodecs(JNIEnv * env, jclass cla
     
     decoder = avcodec_find_decoder(input_codec);
     encoder = avcodec_find_encoder(output_codec);
+    
+    // Also needs to check that the codec are of the same type.
 
     if(decoder != NULL && encoder != NULL)
     {
