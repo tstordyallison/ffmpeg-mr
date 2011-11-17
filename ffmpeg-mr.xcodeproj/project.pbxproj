@@ -40,6 +40,7 @@
 		E2C35A861457094400902770 /* libpostproc.a in Frameworks */ = {isa = PBXBuildFile; fileRef = E261B9081445FE960041422A /* libpostproc.a */; };
 		E2C35A871457094500902770 /* libswresample.a in Frameworks */ = {isa = PBXBuildFile; fileRef = E261B9091445FE960041422A /* libswresample.a */; };
 		E2C35A881457094600902770 /* libswscale.a in Frameworks */ = {isa = PBXBuildFile; fileRef = E261B90A1445FE960041422A /* libswscale.a */; };
+		E2EE1A5E147419B600B0B10F /* ffmpeg_tpl.c in Sources */ = {isa = PBXBuildFile; fileRef = E261E43D14718FF700421617 /* ffmpeg_tpl.c */; };
 		E2F02C051430E728005C9776 /* ffmpeg-mr.c in Sources */ = {isa = PBXBuildFile; fileRef = E2F02C041430E728005C9776 /* ffmpeg-mr.c */; };
 /* End PBXBuildFile section */
 
@@ -354,9 +355,9 @@
 			buildActionMask = 2147483647;
 			files = (
 				E2F02C051430E728005C9776 /* ffmpeg-mr.c in Sources */,
+				E261E43E14718FF700421617 /* ffmpeg_tpl.c in Sources */,
 				E2730A6F14680A8F0049F357 /* other.c in Sources */,
 				E261E4381471889800421617 /* tpl.c in Sources */,
-				E261E43E14718FF700421617 /* ffmpeg_tpl.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -366,6 +367,7 @@
 			files = (
 				E261E43C147188CD00421617 /* tpl.c in Sources */,
 				E2C35A77145708D600902770 /* main.c in Sources */,
+				E2EE1A5E147419B600B0B10F /* ffmpeg_tpl.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -1,11 +1,17 @@
+#include "ffmpeg_tpl.h"
+
 #include "libavcodec/avcodec.h"
 #include "libavutil/mathematics.h"
 #include "libavutil/imgutils.h"
+#include "libavutil/dict.h"
+#include "libavformat/avformat.h"
 
-#include <libavformat/avformat.h>
-#include <libavutil/dict.h>
+#include <fcntl.h>
+#include <unistd.h>
 #include <sys/stat.h>
 #include <math.h>
+#include <errno.h>
+#include <string.h>
 
 #define INBUF_SIZE 4096
 #define AUDIO_INBUF_SIZE 20480
@@ -15,7 +21,7 @@ static int file_exists(char *fileName)
 {   
     struct stat buf;   
     int ret = stat(fileName, &buf);
-    if(ret == 0) return 1;     
+    if (ret == 0)return 1;     
     else         return 0;       
 }
 
@@ -94,7 +100,7 @@ static AVStream *add_copy_stream(AVFormatContext *os, AVStream *stream)
             return NULL;
         }
         memcpy(codec->extradata, icodec->extradata, icodec->extradata_size);
-        codec->extradata_size= icodec->extradata_size;
+        codec->extradata_size = icodec->extradata_size;
         
         codec->time_base = stream->time_base;
         av_reduce(&codec->time_base.num, &codec->time_base.den, codec->time_base.num, codec->time_base.den, INT_MAX);
@@ -171,7 +177,7 @@ static int split_streams(const char *filename, const char *out_filename_base)
     av_dump_format(fmt_ctx, 0, filename, 0);
      
     /* Go through each of the streams and init everything for the remux */
-    AVFormatContext *output_format_context[fmt_ctx->nb_streams];
+    int output_fds[fmt_ctx->nb_streams];
     int count_total[fmt_ctx->nb_streams];
     int count_kf[fmt_ctx->nb_streams];
     
@@ -179,7 +185,7 @@ static int split_streams(const char *filename, const char *out_filename_base)
     for (i = 0; i < fmt_ctx->nb_streams; i++) {
         count_total[i] = 0;
         count_kf[i] = 0;
-        output_format_context[i] = NULL;
+        output_fds[i] = -1;
             
         if(fmt_ctx->streams[i]->codec->codec_type == AVMEDIA_TYPE_VIDEO ||
            fmt_ctx->streams[i]->codec->codec_type == AVMEDIA_TYPE_AUDIO)
@@ -190,26 +196,16 @@ static int split_streams(const char *filename, const char *out_filename_base)
             stream_filename = calloc(stream_filename_size, sizeof(char));
             sprintf(stream_filename, "%s.%d", out_filename_base, i);
             
-            // Get the output context
-            avformat_alloc_output_context2(&output_format_context[i], NULL, NULL, out_filename_base);
-            if (!&output_format_context[i]) {
-                printf("Unable to create output context for %s", out_filename_base);
-                return -1;
-            }
-            
             // Open the files.
-            if (avio_open(&output_format_context[i]->pb, stream_filename, AVIO_FLAG_WRITE) < 0) {
-                fprintf(stderr, "Could not open '%s'\n", stream_filename);
+            if ((output_fds[i] = open(stream_filename, O_WRONLY | O_CREAT | O_TRUNC,  S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP|S_IROTH|S_IWOTH)) < 0) {
+                fprintf(stderr, "Could not open '%s': %s\n", stream_filename, strerror(errno));
                 return -1;
             }
             
             free(stream_filename);
             
-            // Add the new streams.
-            add_copy_stream(output_format_context[i], fmt_ctx->streams[i]);
-            
-            // Write out any headers for the output files.
-            avformat_write_header(output_format_context[i], NULL);
+            // Write out the stream meta data to the file.
+            write_avstream_chunk_to_file(fmt_ctx->streams[i], output_fds[i]);
         }
     }
     
@@ -228,27 +224,13 @@ static int split_streams(const char *filename, const char *out_filename_base)
             count_kf[pkt.stream_index] += 1;
         
         // Write out the streams.
-        if(output_format_context[pkt.stream_index] != NULL)
+        if(output_fds[pkt.stream_index] != -1)
         {
-            AVPacket opkt;
-            
-            printf("Read packet for stream %d (dts=%lld, pts=%lld, size=%d)\n", pkt.stream_index, pkt.dts, pkt.pts, pkt.size);
-
-            // Copy the packet
-            av_init_packet(&opkt);
-            opkt.flags = pkt.flags;
-            opkt.stream_index = 0;
-            opkt.duration = pkt.duration;
-            opkt.pts = pkt.pts;
-            opkt.dts = pkt.dts;
-            opkt.data = pkt.data;
-            opkt.size = pkt.size;
+            printf("Split packet for stream %d (dts=%lld, pts=%lld, size=%d)\n", pkt.stream_index, pkt.dts, pkt.pts, pkt.size);
             
             // For the stream we have a packet for, write out the contents 
             // to the corresponding stream output file.
-            av_interleaved_write_frame(output_format_context[pkt.stream_index], &opkt); 
-            
-            av_free_packet(&opkt);
+            write_avpacket_chunk_to_file(&pkt, output_fds[pkt.stream_index]); 
         }
     }
     
@@ -266,8 +248,8 @@ static int split_streams(const char *filename, const char *out_filename_base)
     }
     
     for (i = 0; i < fmt_ctx->nb_streams; i++) {
-        if(output_format_context[i] != NULL)
-            av_write_trailer(output_format_context[i]);
+        if(output_fds[i] != -1)
+            close(output_fds[i]);
     } 
     
     av_close_input_file(fmt_ctx);
@@ -277,7 +259,7 @@ static int split_streams(const char *filename, const char *out_filename_base)
 
 static int merge_streams(const char *filename_base, const char *output_filename)
 {
-    int i, j, err;
+    int i, err;
     AVFormatContext *output_format_context = NULL;
     
     // Create an output file AVFormatContext and open the file for writing to the filesystem.
@@ -295,38 +277,34 @@ static int merge_streams(const char *filename_base, const char *output_filename)
     // Also copy the stream metadata from each of the input files into one main file (just use the order that they come in for now).
     char **input_filenames = NULL;
     int nb_streams = count_files_with_base((char *)filename_base, &input_filenames);
-    AVFormatContext *input_format_context[nb_streams];
+    int input_fds[nb_streams];
+    int input_fds_ret[nb_streams];
     
     for (i = 0; i < nb_streams; i++) {
-        AVFormatContext *input_format_context_current = input_format_context[i] = NULL;
-        
-        if ((err = avformat_open_input(&input_format_context_current, input_filenames[i], NULL, NULL)) < 0) {
-            printf("Failed to open file %s, error %d", input_filenames[i], err);
-            return err;
-        }
         
         /* fill the streams in the format context */
-        if ((err = avformat_find_stream_info(input_format_context_current, NULL)) < 0) {
-            printf("Failed to open streams in file %s, error %d", input_filenames[i], err);
+        input_fds[i] = open(input_filenames[i], O_RDONLY);
+        if (input_fds[i] < 0) {
+            printf("Failed to open streams in file %s, error %s\n", input_filenames[i], strerror(errno));
             return err;
         }
+    
+    
+        // Read in the stream from the front of the file.
+        AVStream *stream;
+        read_avstream_chunk_from_file(input_fds[i], stream);
         
-        /* bind a decoder to each input stream */
-        for (j = 0; j < input_format_context_current->nb_streams; j++) {
-            AVStream *stream = input_format_context_current->streams[j];
-            AVCodec *codec;
-            
-            if (!(codec = avcodec_find_decoder(stream->codec->codec_id))) {
-                fprintf(stderr, "Unsupported codec with id %d for input stream %d\n", stream->codec->codec_id, stream->index);
-            } else if (avcodec_open2(stream->codec, codec, NULL) < 0) {
-                fprintf(stderr, "Error while opening codec for input stream %d\n", stream->index);
-            }
-            
-            // Take a copy of this stream, and put it into the new output file.
-            add_copy_stream(output_format_context, stream);
+        // Open the codecs and 
+        AVCodec *codec;
+
+        if (!(codec = avcodec_find_decoder(stream->codec->codec_id))) {
+            fprintf(stderr, "Unsupported codec with id %d for input stream %d\n", stream->codec->codec_id, stream->index);
+        } else if (avcodec_open2(stream->codec, codec, NULL) < 0) {
+            fprintf(stderr, "Error while opening codec for input stream %d\n", stream->index);
         }
         
-        input_format_context[i] = input_format_context_current;
+        // Take a copy of this stream, and put it into the new output file.
+        add_copy_stream(output_format_context, stream);
     }
     
     // Write out any headers for the output files.
@@ -334,36 +312,44 @@ static int merge_streams(const char *filename_base, const char *output_filename)
     
     // Go through and read from each stream over and over, taking the packets and av_interleaved_write_frame to the correct stream in the output to merge the files again.
     AVPacket pkt;
-    int current_fmt_ctx = nb_streams - 1; // TODO: This is a bit minging and assumes that the inputs only have one stream - fix me!
+    int current_fmt_ctx = 0; // TODO: This is a bit minging and assumes that the inputs only have one stream - fix me!
     av_init_packet(&pkt);
     
-    while (!av_read_frame(input_format_context[current_fmt_ctx], &pkt))
-    {
+    // Init the returns.
+    for (i = 0; i < nb_streams; i++) {
+        input_fds_ret[i] = 0;
+    }
     
-        AVPacket opkt;
+    // Main loop - this is an awful hacky mess. Fix it please. 
+    for(;;)
+    {
+        // Read in some data.
+        if(!input_fds_ret[current_fmt_ctx])
+            input_fds_ret[current_fmt_ctx] = read_avpacket_chunk_from_file(input_fds[current_fmt_ctx], &pkt);
         
-        // Copy the packet
-        av_init_packet(&opkt);
-        opkt.flags = pkt.flags;
-        opkt.stream_index = current_fmt_ctx;
-        opkt.duration = pkt.duration;
-        opkt.pts = pkt.pts;
-        opkt.dts = pkt.dts;
-        opkt.data = pkt.data;
-        opkt.size = pkt.size;
-        
-        // For the stream we have a packet for, write out the contents 
-        // to the corresponding stream output file.
-        printf("Writing packet for stream %d (dts=%lld, pts=%lld, size=%d, pos=%lld)\n", opkt.stream_index, opkt.dts, opkt.pts, opkt.size, pkt.pos);
-        av_interleaved_write_frame(output_format_context, &opkt);
-        
-        av_free_packet(&opkt);
+        // If we got something, process it.
+        if(!input_fds_ret[current_fmt_ctx])
+        {
+            // For the stream we have a packet for, write out the contents to the corresponding stream output file.
+            printf("Writing packet to merge for stream %d (dts=%lld, pts=%lld, size=%d)\n", pkt.stream_index, pkt.dts, pkt.pts, pkt.size);
+            //av_interleaved_write_frame(output_format_context, &pkt);
+        }
         
         // Increment the current_fmt_ctx
         if(current_fmt_ctx == nb_streams-1)
             current_fmt_ctx = 0;
         else
             current_fmt_ctx++;
+        
+        // Break if all of the fds are empty.
+        int empty_count = 0;
+        for (i = 0; i < nb_streams; i++) {
+            if(input_fds_ret[i] == -1)
+                empty_count++;
+        }
+        if (empty_count == nb_streams) {
+            break;
+        }
     }
     
     // Write the output file trailers.
@@ -372,7 +358,7 @@ static int merge_streams(const char *filename_base, const char *output_filename)
     // Free up stuff.
     for(i = 0; i < nb_streams; i++)
     {
-        av_close_input_file(input_format_context[i]);
+        close(input_fds[i]);
         free(input_filenames[i]);
     }
     free(input_filenames);
@@ -384,11 +370,11 @@ int main(int argc, char **argv)
     av_register_all();
     avcodec_register_all();
 
-    split_streams("/Users/tom/Test.avi", "/Users/tom/Test.mp4");
-    //split_streams("/Volumes/Movies and TV/Movies/American Pie 2.mp4", "/Users/tom/Test.mp4");
-    
-    //merge_streams("/Users/tom/Test.avi", "/Users/tom/Test-Merged.avi");
+    //split_streams("/Users/tom/Test.mp4", "/Users/tom/Test.mp4");
     merge_streams("/Users/tom/Test.mp4", "/Users/tom/Test-Merged.mp4");
+    
+    //split_streams("/Volumes/Movies and TV/Movies/American Pie 2.mp4", "/Users/tom/Test.mp4");
+    //merge_streams("/Users/tom/Test.avi", "/Users/tom/Test-Merged.avi");
     
     return 0;
 }
