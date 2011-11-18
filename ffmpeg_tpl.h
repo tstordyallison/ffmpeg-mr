@@ -4,7 +4,7 @@
 #include "tpl.h"
 #include <libavformat/avformat.h>
 
-int read_avstream_chunk_from_file(int fd, AVStream *stream);
+int read_avstream_chunk_from_file(AVFormatContext *os, int fd, AVStream **stream);
 int write_avstream_chunk_to_file(AVStream *stream, int fd);
 
 int read_avpacket_chunk_from_file(int fd, AVPacket *pkt);
