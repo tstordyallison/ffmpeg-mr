@@ -10,7 +10,7 @@
 // Most of the data we store for a stream, is really the codec context.
 // We don't store any of the transient information about the stream - this is not what we are bothered about.
 // This takes most of its def. from the copy_stream method found in ffmpeg.c
-#define AVSTREAM_TPL_FORMAT "iiiiiiiiiviiiiiIiiiiiiiiiiiiB"
+#define AVSTREAM_TPL_FORMAT "iiiiiiiiiiiiiiIiiiiiiiiiiiiB"
 /*
 ----- STREAM ------
  i  =   int disposition; < AV_DISPOSITION_* bit field
@@ -21,7 +21,6 @@
  i  =   enum AVChromaLocation chroma_sample_location;
  i  =   enum CodecID codec_id;
  i  =   enum AVMediaType codec_type;
- v  =   unsigned int codec_tag;
  i  =   int bit_rate;
  i  =   int rc_max_rate;
  i  =   int rc_buffer_size;
@@ -40,21 +39,6 @@
  ii =   AVRational sample_aspect_ratio;
  B  =   uint8_t *extradata/int extradata_size; (as a byte stream)
  */
-
-
-// This is the format definition for the AVPackets that we store.
-#define AVPACKET_TPL_FORMAT "IIiiIiB"
-/*
- 
-I = int64_t pts;
-I = int64_t dts;
-i = int   flags;
-i = int   duration;
-I = int64_t convergence_duration;
-i = int   stream_index;
-B = uint8_t *data/size;
-
-*/
 
 
 int read_avstream_chunk_from_file(AVFormatContext *os, int fd, AVStream **new_stream){
@@ -82,7 +66,6 @@ int read_avstream_chunk_from_file(AVFormatContext *os, int fd, AVStream **new_st
                  &(stream->codec->chroma_sample_location),
                  &(stream->codec->codec_id),
                  &(stream->codec->codec_type),
-                 &(stream->codec->codec_tag),
                  &(stream->codec->bit_rate),
                  &(stream->codec->rc_max_rate),
                  &(stream->codec->rc_buffer_size),
@@ -111,24 +94,18 @@ int read_avstream_chunk_from_file(AVFormatContext *os, int fd, AVStream **new_st
     
     stream->codec->extradata_size = data.sz;
     stream->codec->extradata = data.addr;
+
+    stream->codec->codec_tag = 0;
     
     {
         // Nicely doctored code from the insides of ffmpeg.c
          
         AVCodecContext *codec = stream->codec;
-        AVCodecContext *icodec = stream->codec;
 
         stream->stream_copy = -1;
-                
-        if(!codec->codec_tag){
-            if(   !os->oformat->codec_tag
-               || av_codec_get_id (os->oformat->codec_tag, icodec->codec_tag) == codec->codec_id
-               || av_codec_get_tag(os->oformat->codec_tag, icodec->codec_id) <= 0)
-                codec->codec_tag = icodec->codec_tag;
-        }
         
-        codec->time_base = stream->time_base;
-        av_reduce(&codec->time_base.num, &codec->time_base.den, codec->time_base.num, codec->time_base.den, INT_MAX);
+        //codec->time_base = stream->time_base;
+        //av_reduce(&codec->time_base.num, &codec->time_base.den, codec->time_base.num, codec->time_base.den, INT_MAX);
         
         switch(codec->codec_type) {
             case AVMEDIA_TYPE_AUDIO:
@@ -177,7 +154,6 @@ int write_avstream_chunk_to_file(AVStream *stream, int fd){
                  &(stream->codec->chroma_sample_location),
                  &(stream->codec->codec_id),
                  &(stream->codec->codec_type),
-                 &(stream->codec->codec_tag),
                  &(stream->codec->bit_rate),
                  &(stream->codec->rc_max_rate),
                  &(stream->codec->rc_buffer_size),
@@ -204,6 +180,20 @@ int write_avstream_chunk_to_file(AVStream *stream, int fd){
     return ret;
 }
 
+// This is the format definition for the AVPackets that we store.
+#define AVPACKET_TPL_FORMAT "IIiiIiB"
+/*
+ 
+ I = int64_t pts;
+ I = int64_t dts;
+ i = int   flags;
+ i = int   duration;
+ I = int64_t convergence_duration;
+ i = int   stream_index;
+ B = uint8_t *data/size;
+ 
+ */
+
 int read_avpacket_chunk_from_file(int fd, AVPacket *pkt){
     tpl_node *tn;
     tpl_bin data;
@@ -227,6 +217,8 @@ int read_avpacket_chunk_from_file(int fd, AVPacket *pkt){
     pkt->size = data.sz;
     pkt->data = data.addr;
     
+    pkt->destruct = av_destruct_packet;
+    
     tpl_free(tn);
     
     return ret;
@@ -238,7 +230,7 @@ int write_avpacket_chunk_to_file(AVPacket *pkt, int fd){
     int ret;
     
     data.sz = pkt->size;
-    data.addr = &(pkt->data);
+    data.addr = pkt->data;
     
     tn = tpl_map(AVPACKET_TPL_FORMAT,
                  &(pkt->pts), 

@@ -101,7 +101,6 @@
 		E2848CCB1430E4D200E06673 /* ffmpeg.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = ffmpeg.xcodeproj; path = ../ffmpeg/ffmpeg.xcodeproj; sourceTree = "<group>"; };
 		E2C35A73145708D600902770 /* TestSample */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = TestSample; sourceTree = BUILT_PRODUCTS_DIR; };
 		E2C35A76145708D600902770 /* main.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = main.c; sourceTree = "<group>"; };
-		E2E4065B1475E0DF008051BD /* main_old */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = main_old; sourceTree = "<group>"; };
 		E2F02C041430E728005C9776 /* ffmpeg-mr.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = "ffmpeg-mr.c"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -229,7 +228,6 @@
 			children = (
 				E2C35A76145708D600902770 /* main.c */,
 				E2730A6E14680A8F0049F357 /* other.c */,
-				E2E4065B1475E0DF008051BD /* main_old */,
 			);
 			path = TestSample;
 			sourceTree = "<group>";
