@@ -16,7 +16,8 @@
 #define INBUF_SIZE 4096
 #define AUDIO_INBUF_SIZE 20480
 #define AUDIO_REFILL_THRESH 4096
-#define DEBUG 0
+#define DEBUG_SPLIT 0
+#define DEBUG_MERGE 1
 
 static int file_exists(char *fileName)
 {   
@@ -119,7 +120,7 @@ static int split_streams(const char *filename, const char *out_filename_base)
         }
     }
     
-    if(DEBUG)
+    if(DEBUG_SPLIT)
         av_dump_format(fmt_ctx, 0, filename, 0);
     
     /* Go through each of the streams and init everything for the remux */
@@ -145,14 +146,14 @@ static int split_streams(const char *filename, const char *out_filename_base)
             // Open the files.
             if ((output_fds[i] = open(stream_filename, O_WRONLY | O_CREAT | O_TRUNC,  S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP|S_IROTH|S_IWOTH)) < 0) {
                 fprintf(stderr, "Could not open '%s': %s\n", stream_filename, strerror(errno));
-                return -1;a
+                return -1;
             }
             
             free(stream_filename);
             
             // Write out the stream meta data to the file.
-            write_avstream_chunk_to_file(fmt_ctx->streams[i], output_fds[i]);
-            if(DEBUG)
+            write_avstream_chunk_to_fd(fmt_ctx->streams[i], output_fds[i]);
+            if(DEBUG_SPLIT)
                 dumpbuff(fmt_ctx->streams[i]->codec->extradata, fmt_ctx->streams[i]->codec->extradata_size);
         }
     }
@@ -174,21 +175,21 @@ static int split_streams(const char *filename, const char *out_filename_base)
         // Write out the streams.
         if(output_fds[pkt.stream_index] != -1)
         {
-            if(DEBUG){
+            if(DEBUG_SPLIT){
                 printf("Split packet for stream %d (dts=%lld, pts=%lld, size=%d)\n", pkt.stream_index, pkt.dts, pkt.pts, pkt.size);
                 dumpbuff(pkt.data, pkt.size);
             }
             
             // For the stream we have a packet for, write out the contents 
             // to the corresponding stream output file.
-            write_avpacket_chunk_to_file(&pkt, output_fds[pkt.stream_index]);
+            write_avpacket_chunk_to_fd(&pkt, output_fds[pkt.stream_index]);
         }
         
         av_free_packet(&pkt);
     }
     
     // Print out the totals for each of the streams.
-    if(DEBUG)
+    if(DEBUG_SPLIT)
     {
         for (i = 0; i < fmt_ctx->nb_streams; i++) {
             AVStream *stream = fmt_ctx->streams[i];
@@ -251,9 +252,9 @@ static int merge_streams(const char *filename_base, const char *output_filename)
         
         // Read in the stream from the front of the file.
         AVStream *stream;
-        read_avstream_chunk_from_file(output_format_context, input_fds[i], &stream);
+        read_avstream_chunk_from_fd(input_fds[i], output_format_context, &stream);
         
-        if(DEBUG)
+        if(DEBUG_MERGE)
             dumpbuff(stream->codec->extradata, stream->codec->extradata_size);
         
         // Open the codecs and 
@@ -283,22 +284,28 @@ static int merge_streams(const char *filename_base, const char *output_filename)
         input_fds_ret[i] = 0;
     }
     
-    // Main loop - this is an awful hacky mess. Fix it please. 
+    // Main loop - this is an awful hacky mess. F,ix it please. And sort the interleaving.
     for(;;)
     {
         // Read in some data.
         if(!input_fds_ret[current_fmt_ctx])
-            input_fds_ret[current_fmt_ctx] = read_avpacket_chunk_from_file(input_fds[current_fmt_ctx], &pkt);
+            input_fds_ret[current_fmt_ctx] = read_avpacket_chunk_from_fd(input_fds[current_fmt_ctx], &pkt);
         
         // If we got something, process it.
         if(!input_fds_ret[current_fmt_ctx])
         {
             // For the stream we have a packet for, write out the contents to the corresponding stream output file.
-            if(DEBUG){
+            if(DEBUG_MERGE){
                 printf("Writing packet to merge for stream %d (dts=%lld, pts=%lld, size=%d)\n", pkt.stream_index, pkt.dts, pkt.pts, pkt.size);
-                dumpbuff(pkt.data, pkt.size);
+                //dumpbuff(pkt.data, pkt.size);
             }
-            av_interleaved_write_frame(output_format_context, &pkt);
+            
+            int ret = av_interleaved_write_frame(output_format_context, &pkt);
+            
+            if(DEBUG_MERGE && ret != 0){
+                printf("Frame written: ret=%d\n", ret);
+            }
+            
 //            if(pkt.destruct != NULL)
 //            {
 //                printf("There is a destructor!");
@@ -308,7 +315,7 @@ static int merge_streams(const char *filename_base, const char *output_filename)
 //                if(pkt.data != NULL)
 //                    free(pkt.data);
 //            }
-            av_free_packet(&pkt);
+            //av_free_packet(&pkt);
         }
         
         // Increment the current_fmt_ctx
@@ -323,6 +330,7 @@ static int merge_streams(const char *filename_base, const char *output_filename)
             if(input_fds_ret[i] == -1)
                 empty_count++;
         }
+        
         if (empty_count == nb_streams) {
             break;
         }
@@ -335,7 +343,7 @@ static int merge_streams(const char *filename_base, const char *output_filename)
     for(i = 0; i < nb_streams; i++)
     {
         close(input_fds[i]);
-        remove(input_filenames[i]);
+        //remove(input_filenames[i]);
         free(input_filenames[i]);
     }
     free(input_filenames);
@@ -353,14 +361,14 @@ int main(int argc, char **argv)
     if(!split_streams("/Users/tom/Documents/FYP/Test.mp4", "/Users/tom/Documents/FYP/Test.mp4"))
         merge_streams("/Users/tom/Documents/FYP/Test.mp4", "/Users/tom/Documents/FYP/Test-Merged.mp4");
     
-    if(!split_streams("/Users/tom/Documents/FYP/Test.avi", "/Users/tom/Documents/FYP/Test.avi"))
-        merge_streams("/Users/tom/Documents/FYP/Test.avi", "/Users/tom/Documents/FYP/Test-Merged.avi");
-    
-    if(!split_streams("/Users/tom/Documents/FYP/Test.mkv", "/Users/tom/Documents/FYP/Test.mkv"))
-        merge_streams("/Users/tom/Documents/FYP/Test.mkv", "/Users/tom/Documents/FYP/Test-Merged.mkv");
-    
-    if(!split_streams("/Users/tom/Documents/FYP/Test.wmv", "/Users/tom/Documents/FYP/Test.wmv"))
-        merge_streams("/Users/tom/Documents/FYP/Test.wmv", "/Users/tom/Documents/FYP/Test-Merged.wmv");
+//    if(!split_streams("/Users/tom/Documents/FYP/Test.avi", "/Users/tom/Documents/FYP/Test.avi"))
+//        merge_streams("/Users/tom/Documents/FYP/Test.avi", "/Users/tom/Documents/FYP/Test-Merged.avi");
+//    
+//    if(!split_streams("/Users/tom/Documents/FYP/Test.mkv", "/Users/tom/Documents/FYP/Test.mkv"))
+//        merge_streams("/Users/tom/Documents/FYP/Test.mkv", "/Users/tom/Documents/FYP/Test-Merged.mkv");
+//    
+//    if(!split_streams("/Users/tom/Documents/FYP/Test.wmv", "/Users/tom/Documents/FYP/Test.wmv"))
+//        merge_streams("/Users/tom/Documents/FYP/Test.wmv", "/Users/tom/Documents/FYP/Test-Merged.wmv");
     
     return 0;
 }

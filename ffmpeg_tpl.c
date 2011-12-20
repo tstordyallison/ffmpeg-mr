@@ -1,6 +1,9 @@
 #include "tpl.h"
 #include "ffmpeg_tpl.h"
 #include <libavformat/avformat.h>
+#include <stdio.h>
+#include <unistd.h>
+
 // -----------------------------------------------------------------
 // This format is a bit of a hack.
 // The way that the AVPackets are stored needs changed so that we use the unbounded array support in 
@@ -10,6 +13,7 @@
 // Most of the data we store for a stream, is really the codec context.
 // We don't store any of the transient information about the stream - this is not what we are bothered about.
 // This takes most of its def. from the copy_stream method found in ffmpeg.c
+
 #define AVSTREAM_TPL_FORMAT "iiiiiiiiiiiiiiIiiiiiiiiiiiiB"
 /*
 ----- STREAM ------
@@ -40,8 +44,10 @@
  B  =   uint8_t *extradata/int extradata_size; (as a byte stream)
  */
 
+int read_avstream_chunk_from_memory(void *opaque, int(*read_data)(void *opaque, uint8_t *buf, int buf_size), AVFormatContext *os, AVStream **stream){
+}
 
-int read_avstream_chunk_from_file(AVFormatContext *os, int fd, AVStream **new_stream){
+int read_avstream_chunk_from_fd(int fd, AVFormatContext *os, AVStream **new_stream){
     
     AVStream *stream;
     tpl_node *tn;
@@ -104,6 +110,7 @@ int read_avstream_chunk_from_file(AVFormatContext *os, int fd, AVStream **new_st
 
         stream->stream_copy = -1;
         
+        // WTF - this needs sorted out.
         //codec->time_base = stream->time_base;
         //av_reduce(&codec->time_base.num, &codec->time_base.den, codec->time_base.num, codec->time_base.den, INT_MAX);
         
@@ -136,7 +143,10 @@ int read_avstream_chunk_from_file(AVFormatContext *os, int fd, AVStream **new_st
     return ret;
 }
 
-int write_avstream_chunk_to_file(AVStream *stream, int fd){
+int read_avstream_chunk_from_file(FILE *file, AVFormatContext *os, AVStream **stream){
+}
+
+int write_avstream_chunk_to_memory(AVStream *stream, uint8_t **unallocd_buffer, int *size){
     tpl_node *tn;
     tpl_bin data;
     int ret;
@@ -175,26 +185,45 @@ int write_avstream_chunk_to_file(AVStream *stream, int fd){
                  &data);
     
     tpl_pack(tn,0);
-    ret = tpl_dump(tn, TPL_FD, fd);
+    ret = tpl_dump(tn, TPL_MEM, unallocd_buffer, size);
     tpl_free(tn);
+    
     return ret;
+}
+
+int write_avstream_chunk_to_fd(AVStream *stream, int fd){
+    uint8_t *buffer;
+    int size, ret;
+    ret = write_avstream_chunk_to_memory(stream, &buffer, &size);
+    if(ret == 0)
+        write(fd, buffer, size);
+    free(buffer);
+    return ret;
+}
+
+int write_avstream_chunk_to_file(AVStream *stream, FILE *file){
+    
+    
 }
 
 // This is the format definition for the AVPackets that we store.
 #define AVPACKET_TPL_FORMAT "IIiiIiB"
 /*
- 
  I = int64_t pts;
  I = int64_t dts;
  i = int   flags;
  i = int   duration;
  I = int64_t convergence_duration;
  i = int   stream_index;
+ //A(S(iiB)) = side data struct (type, size, data).
+ //i = int side_data_elems;
  B = uint8_t *data/size;
- 
  */
 
-int read_avpacket_chunk_from_file(int fd, AVPacket *pkt){
+int read_avpacket_chunk_from_memory(void *opaque, int(*read_data)(void *opaque, uint8_t *buf, int buf_size), AVPacket *pkt){
+}
+
+int read_avpacket_chunk_from_fd(int fd, AVPacket *pkt){
     tpl_node *tn;
     tpl_bin data;
     int ret;
@@ -224,7 +253,10 @@ int read_avpacket_chunk_from_file(int fd, AVPacket *pkt){
     return ret;
 }
 
-int write_avpacket_chunk_to_file(AVPacket *pkt, int fd){
+int read_avpacket_chunk_from_file(FILE *file, AVPacket *pkt){
+}
+
+int write_avpacket_chunk_to_memory(AVPacket *pkt, uint8_t **unallocd_buffer, int *size){
     tpl_node *tn;
     tpl_bin data;
     int ret;
@@ -242,7 +274,21 @@ int write_avpacket_chunk_to_file(AVPacket *pkt, int fd){
                  &data);
     
     tpl_pack(tn,0);
-    ret = tpl_dump(tn, TPL_FD, fd);
+    ret = tpl_dump(tn, TPL_MEM, unallocd_buffer, size);
     tpl_free(tn);
+    
+    return ret;
+    
+}
+
+int write_avpacket_chunk_to_fd(AVPacket *pkt, int fd){
+    uint8_t *buffer;
+    int size, ret;
+    ret = write_avpacket_chunk_to_memory(pkt, &buffer, &size);
+    if(ret == 0)
+        write(fd, buffer, size);
+    free(buffer);
     return ret;
 }
+
+int write_avpacket_chunk_to_file(AVPacket *pkt, FILE *file){}
