@@ -7,11 +7,11 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		E24208C0144CAC6600E11A39 /* libffmpeg-mr.jnilib in CopyFiles */ = {isa = PBXBuildFile; fileRef = E2848C6D1430E35500E06673 /* libffmpeg-mr.jnilib */; };
 		E24208C4144CB96600E11A39 /* libbz2.1.0.5.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = E24208C2144CB96600E11A39 /* libbz2.1.0.5.dylib */; };
 		E24208C5144CB96600E11A39 /* libz.1.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = E24208C3144CB96600E11A39 /* libz.1.dylib */; };
 		E2420C1B144CBDB600E11A39 /* libmp3lame.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = E2420C1A144CBDB600E11A39 /* libmp3lame.dylib */; };
 		E2420C1D144CBDBF00E11A39 /* libx264.118.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = E2420C1C144CBDBF00E11A39 /* libx264.118.dylib */; };
+		E2614D0E14ABD0E0002DB9B7 /* libffmpeg-mr.jnilib in CopyFiles */ = {isa = PBXBuildFile; fileRef = E2848C6D1430E35500E06673 /* libffmpeg-mr.jnilib */; };
 		E261B90B1445FE960041422A /* libavcodec.a in Frameworks */ = {isa = PBXBuildFile; fileRef = E261B9031445FE960041422A /* libavcodec.a */; };
 		E261B90C1445FE960041422A /* libavdevice.a in Frameworks */ = {isa = PBXBuildFile; fileRef = E261B9041445FE960041422A /* libavdevice.a */; };
 		E261B90D1445FE960041422A /* libavfilter.a in Frameworks */ = {isa = PBXBuildFile; fileRef = E261B9051445FE960041422A /* libavfilter.a */; };
@@ -61,7 +61,7 @@
 			dstPath = $PROJECT_DIR/$PROJECT;
 			dstSubfolderSpec = 0;
 			files = (
-				E24208C0144CAC6600E11A39 /* libffmpeg-mr.jnilib in CopyFiles */,
+				E2614D0E14ABD0E0002DB9B7 /* libffmpeg-mr.jnilib in CopyFiles */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -431,6 +431,7 @@
 		E2848C7B1430E35500E06673 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				EXECUTABLE_EXTENSION = jnilib;
 				EXECUTABLE_PREFIX = lib;
 				HEADER_SEARCH_PATHS = (

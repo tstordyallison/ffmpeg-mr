@@ -16,7 +16,7 @@
 #define INBUF_SIZE 4096
 #define AUDIO_INBUF_SIZE 20480
 #define AUDIO_REFILL_THRESH 4096
-#define DEBUG_SPLIT 0
+#define DEBUG_SPLIT 1
 #define DEBUG_MERGE 1
 
 static int file_exists(char *fileName)
@@ -177,7 +177,7 @@ static int split_streams(const char *filename, const char *out_filename_base)
         {
             if(DEBUG_SPLIT){
                 printf("Split packet for stream %d (dts=%lld, pts=%lld, size=%d)\n", pkt.stream_index, pkt.dts, pkt.pts, pkt.size);
-                dumpbuff(pkt.data, pkt.size);
+                //dumpbuff(pkt.data, pkt.size);
             }
             
             // For the stream we have a packet for, write out the contents 
@@ -299,6 +299,9 @@ static int merge_streams(const char *filename_base, const char *output_filename)
                 printf("Writing packet to merge for stream %d (dts=%lld, pts=%lld, size=%d)\n", pkt.stream_index, pkt.dts, pkt.pts, pkt.size);
                 //dumpbuff(pkt.data, pkt.size);
             }
+            
+            pkt.dts += 100000;
+            pkt.pts += 100000;
             
             int ret = av_interleaved_write_frame(output_format_context, &pkt);
             

@@ -131,7 +131,6 @@ JNIEXPORT jint JNICALL Java_com_tstordyallison_ffmpegmr_Demuxer_initDemuxWithFil
     
     // Open the file for reading.
     filename = (*env)->GetStringUTFChars(env, jfilename, (jboolean *)&filename_copy);
-    printf("File to demux: %s\n", filename);
     if ((err = avformat_open_input(&state->fmt_ctx, filename, NULL, NULL)) < 0) {
         print_file_error(filename, err);
         goto failure;
@@ -178,7 +177,7 @@ JNIEXPORT jint JNICALL Java_com_tstordyallison_ffmpegmr_Demuxer_initDemuxWithFil
         err = -1;
         goto failure;
     }
-    state->dpkt_ctr = (*env)->GetMethodID(env, state->dpkt_clazz, "<init>", "(Lcom/tstordyallison/ffmpegmr/Demuxer;)V");
+    state->dpkt_ctr = (*env)->GetMethodID(env, state->dpkt_clazz, "<init>", "()V");
     
 failure:
     // Deallocs
@@ -287,35 +286,41 @@ JNIEXPORT jobject JNICALL Java_com_tstordyallison_ffmpegmr_Demuxer_getNextChunk
         // Read the next AVPacket from the input.
         int ret = 0;
         ret = av_read_frame(state->fmt_ctx, &state->pkt);
-        if(ret == 0) return NULL;
+        if(ret != 0) return NULL;
         
         // Skip over any invalid streams.
         while(state->stream_data_sizes[state->pkt.stream_index] == 0){
             ret = av_read_frame(state->fmt_ctx, &state->pkt);
-            if(ret == 0) return NULL;
+            if(ret != 0) return NULL;
         }
-                                       
-        // Create the DemuxPacket object.
-        jobject dpkt = (*env)->NewObject(env, state->dpkt_clazz, state->dpkt_ctr, obj);
-       
+        
         // Temp for the AVPacket TPL.
         uint8_t *pkt_tpl_data;
         int pkt_tpl_size;                               
         
         // Generate the TPL.
         write_avpacket_chunk_to_memory(&state->pkt, &pkt_tpl_data, &pkt_tpl_size);
+                                       
+        // Create the DemuxPacket object.
+        jclass      dpkt_clazz = (*env)->FindClass(env, "com/tstordyallison/ffmpegmr/Demuxer$DemuxPacket");
+        jmethodID   dpkt_ctr = (*env)->GetMethodID(env,dpkt_clazz, "<init>", "()V");
+        jobject     dpkt = (*env)->NewObject(env, dpkt_clazz, dpkt_ctr);
         
         // Copy the TPL version to the dpkt (and fill in the other dpkt values).
-        jfieldID streamID = (*env)->GetFieldID(env, dpkt, "streamID", "I");
-        jfieldID splitPoint = (*env)->GetFieldID(env, dpkt, "splitPoint", "Z");
-        jfieldID data = (*env)->GetFieldID(env, dpkt, "data", "[B");
+        jfieldID streamID = (*env)->GetFieldID(env,dpkt_clazz, "streamID", "I");
+        jfieldID dts = (*env)->GetFieldID(env, dpkt_clazz, "dts", "J");
+        jfieldID splitPoint = (*env)->GetFieldID(env, dpkt_clazz, "splitPoint", "Z");
+        jfieldID data = (*env)->GetFieldID(env, dpkt_clazz, "data", "[B");
         
         (*env)->SetIntField(env, dpkt, streamID, state->pkt.stream_index);
+        (*env)->SetLongField(env, dpkt, dts, state->pkt.dts);
+        
         if(state->pkt.flags & AV_PKT_FLAG_KEY)
             (*env)->SetBooleanField(env, dpkt, splitPoint, JNI_TRUE);
         else
             (*env)->SetBooleanField(env, dpkt, splitPoint, JNI_FALSE);
         
+        // TODO: Change this to DirectMappedMemory so that we arent copying as much around.
         jbyteArray output_data = (*env)->NewByteArray(env, pkt_tpl_size);
         (*env)->SetByteArrayRegion(env, output_data, 0, pkt_tpl_size, (jbyte*)pkt_tpl_data);
         (*env)->SetObjectField(env, dpkt, data, output_data);
@@ -327,8 +332,10 @@ JNIEXPORT jobject JNICALL Java_com_tstordyallison_ffmpegmr_Demuxer_getNextChunk
         // Done.
         return dpkt;
     }
-    else
+    else{
+        fprintf(stderr, "Warning: failed to find object for a getNextChunk() call.\n");
         return NULL;
+    }
 }
 
 /*
