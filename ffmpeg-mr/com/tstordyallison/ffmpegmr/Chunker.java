@@ -5,6 +5,8 @@ import java.io.DataOutput;
 import java.io.File;
 import java.io.IOException;
 import java.net.URI;
+import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
@@ -20,7 +22,12 @@ import org.apache.hadoop.io.Writable;
 import com.tstordyallison.ffmpegmr.Demuxer.DemuxPacket;
 
 public class Chunker {
-
+	
+	// TODO: This sounds a bit crazy to even be writing but: Maybe this could be multi threaded?
+	// The data could be pulled over from FFmpeg quicker, and then processed in a seperate thread.
+	// Concurrency queues to manage everything.
+	// Worth a go.
+	
 	// This is the identifier for each input chunk in the system.
 	public static class ChunkID implements Writable {
 		// TODO: implement a compareTo for the partitioner sorting job.
@@ -47,16 +54,42 @@ public class Chunker {
 	
 	// This is the raw chunk of data that will be processed by a mapper.
 	public static class ChunkData implements Writable {
-		public byte[] data;
-
+		// Write mode.
+		private byte[] header = null;
+		private List<DemuxPacket> data = null;
+		
+		// Read mode.
+		private byte[] rawData = null;
+		
+		public ChunkData(byte[] header, List<DemuxPacket> packets)
+		{
+			this.header = header;
+			this.data = packets;
+		}
+		
+		public byte[] getData()
+		{
+			// TODO copy the data from the byte buffer to a new array for completeness.
+			if(rawData == null)
+				throw new RuntimeException("Data is not available - fix me!");
+			
+			return rawData;
+		}
+		
 		@Override
 		public void write(DataOutput out) throws IOException {
-			out.write(data);
+			out.write(header);
+			for(DemuxPacket pkt : data)
+			{	
+				byte[] dst = new byte[pkt.data.limit()];
+				pkt.data.get(dst); // This is the copy across to java.
+				out.write(dst); // This is write to the FS.
+			}
 		}
 
 		@Override
 		public void readFields(DataInput in) throws IOException {
-			in.readFully(data);
+			in.readFully(rawData); // Internally this data is all delimited anyway.
 		}
 	}
 	
@@ -69,27 +102,29 @@ public class Chunker {
 		
 		// Connect to the HDFS system.
 		Configuration conf = new Configuration();
+		
 		FileSystem fs = FileSystem.get(URI.create(hadoopUri), conf); 
 		Path path = new Path(hadoopUri); // TODO: think about the block size here.
-		Long blockSize = fs.getFileStatus(path).getBlockSize();
+		Long blockSize = fs.getDefaultBlockSize();
 		
 		// Setup the FFmepg demuxer and open the input file (this will load the FFmpeg-mr library).
 		Demuxer demuxer = new Demuxer(file.getAbsolutePath());
+		int streamCount = demuxer.getStreamCount();
 		
 		// Init our data stores for each stream (TODO: make this a custome data structure)
-		List<Integer> 				streamHeaderSizes 			= new LinkedList<Integer>();		
-		List<List<DemuxPacket>> 	currentChunks				= new LinkedList<List<DemuxPacket>>();
-		List<Integer> 				currentChunksSizes 			= new LinkedList<Integer>();				
-		List<Integer> 				currentChunkIDCounters		= new LinkedList<Integer>();	
-		List<DemuxPacket> 			endMarkers 					= new LinkedList<DemuxPacket>(); 
+		List<Integer> 				streamHeaderSizes 			= new ArrayList<Integer>(streamCount); 		
+		List<List<DemuxPacket>> 	currentChunks				= new ArrayList<List<DemuxPacket>>(streamCount); 
+		List<Integer> 				currentChunksSizes 			= new ArrayList<Integer>(streamCount); 			
+		List<Integer> 				currentChunkIDCounters		= new ArrayList<Integer>(streamCount); 
+		List<Integer> 				endMarkers 					= new ArrayList<Integer>(streamCount); 
 		
-		for(int i = 0; i < demuxer.getStreamCount(); i++)
+		for(int i = 0; i < streamCount; i++)
 		{
 			streamHeaderSizes.add(demuxer.getStreamData(i).length); // TODO: This could be made better.
-			currentChunks.add(new LinkedList<DemuxPacket>());
+			currentChunks.add(new LinkedList<DemuxPacket>()); // Linked list makes quite a difference.
 			currentChunksSizes.add(0);
 			currentChunkIDCounters.add(0);
-			endMarkers.add(null);
+			endMarkers.add(-1);
 		}
 		
 		// Main stream splitter, chunker and outputter to HDFS.
@@ -101,13 +136,13 @@ public class Chunker {
 			// Use the demuxer to get a new data chunk.
 			// When we are happy, pass this chunk onto HDFS.
 			{
-				DemuxPacket currentPacket = demuxer.getNextChunk2();
+				DemuxPacket currentPacket = demuxer.getNextChunk();
 				while(currentPacket != null)
 				{
 					// If we add this to the current chunk we are building, will we go over the chunk size?
 					if(streamHeaderSizes.get(currentPacket.streamID) + 
 					   currentChunksSizes.get(currentPacket.streamID) + 
-					   currentPacket.data.length 
+					   currentPacket.data.capacity()
 							> (blockSize))
 					{
 						// This would be bad, so lets call it day here.
@@ -115,15 +150,13 @@ public class Chunker {
 						chunkID.streamID = currentPacket.streamID;
 						
 						int written = emptyChunkBuffer(chunkID, 
-								 							demuxer.getStreamData(currentPacket.streamID),
-															currentChunks.get(currentPacket.streamID), 
-															endMarkers.get(currentPacket.streamID),
-															writer);
+							 							demuxer.getStreamData(currentPacket.streamID),
+														currentChunks.get(currentPacket.streamID), 
+														endMarkers.get(currentPacket.streamID),
+														writer);
 						
-						// Store the left over counter.
+						// Store the left over counter and increment the chunk counter.
 						currentChunksSizes.set(currentPacket.streamID, currentChunksSizes.get(currentPacket.streamID) - written);
-						
-						// Increment the chunk counter.
 						currentChunkIDCounters.set(currentPacket.streamID, currentChunkIDCounters.get(currentPacket.streamID) + 1);
 						
 					}
@@ -131,15 +164,15 @@ public class Chunker {
 					else
 					{
 						currentChunks.get(currentPacket.streamID).add(currentPacket);
-						currentChunksSizes.set(currentPacket.streamID, currentChunksSizes.get(currentPacket.streamID) + currentPacket.data.length);
+						currentChunksSizes.set(currentPacket.streamID, currentChunksSizes.get(currentPacket.streamID) + currentPacket.data.limit());
+						
+						// Mark this if it is a split point.
+						if(currentPacket.splitPoint)
+							endMarkers.set(currentPacket.streamID, currentChunks.get(currentPacket.streamID).size()-1);
 					}
 					
-					// Mark this if it is a split point.
-					if(currentPacket.splitPoint)
-						endMarkers.set(currentPacket.streamID, currentPacket);
-					
 					// Get the next packet.
-					currentPacket = demuxer.getNextChunk2();
+					currentPacket = demuxer.getNextChunk();
 				}
 			}
 			
@@ -153,13 +186,19 @@ public class Chunker {
 					emptyChunkBuffer(chunkID, 
 									 demuxer.getStreamData(i),
 									 currentChunks.get(i), 
-									 null,
+									 currentChunks.size()-1,
 									 writer);
 
 			}
 			
+			
+			
 			System.out.println("Sucessfully processed " + file.getName() + ".");
 		} 
+		catch(Exception e)
+		{
+			e.printStackTrace();
+		}
 		finally {
 			if(writer != null)
 				IOUtils.closeStream(writer);
@@ -175,59 +214,41 @@ public class Chunker {
 	 */
 	private static int emptyChunkBuffer(ChunkID 			chunkID,
 										byte[] 				header,
-										List<DemuxPacket> 	chunk, 
-										DemuxPacket 		endMarker, 
+										List<DemuxPacket> 	chunkBuffer, 
+										int			 		endMarker, 
 										SequenceFile.Writer writer) throws IOException
 	{
-		// Count up the exact size of our data buffer, add the chunks to actual chunk, and remove them from the old one.
-		List<DemuxPacket> actualChunk = new LinkedList<Demuxer.DemuxPacket>();
-		
-		int actualChunkSize = 0;
-		Iterator<DemuxPacket> it = chunk.iterator();
-		DemuxPacket currentPacket = null;
-		while(it.hasNext())
-		{
-			currentPacket = it.next();
-			
-			if(currentPacket == endMarker)	
-				break;
-			
-			actualChunk.add(currentPacket);
-			actualChunkSize += currentPacket.data.length;
-			it.remove();
-		}
-		
-		// Set the start and end values for the the chunk id.
-		if(actualChunk.size() > 0){
-			chunkID.chunkNumber = actualChunk.get(0).dts;
-			chunkID.chunkNumberEnd = actualChunk.get(actualChunk.size()-1).dts;
-		}
-		
-		// Allocate the byte array (TODO: find a less memory intensive way to this. This is nasty. The GC will hate me. C?)
-		ChunkData chunkData = new ChunkData();
-		chunkData.data = new byte[header.length + actualChunkSize];
-		int outputOffset = 0;
-		
-		// Copy in the header
-		System.arraycopy(header, 0, chunkData.data, outputOffset, header.length);
-		outputOffset += header.length;
-		
-		// Copy in the data
-		for(DemuxPacket packet : actualChunk)
-		{
-//			System.out.println("\tChunk data copy: packet size=" + packet.data.length + 
-//										",\t range=" + outputOffset + " to " + (outputOffset+packet.data.length) + 
-//										",\t remaining=" + (chunkData.data.length - (outputOffset+packet.data.length)));
-			System.arraycopy(packet.data, 0, chunkData.data, outputOffset, packet.data.length);
-			outputOffset += packet.data.length;
-		}
-		
-		// Write this!
+		// Build the data chunk for output.
+		chunkID.chunkNumber = chunkBuffer.get(0).dts;
+		chunkID.chunkNumberEnd = chunkBuffer.get(endMarker-1).dts;
+		ChunkData chunkData = new ChunkData(header, new LinkedList<DemuxPacket>(chunkBuffer.subList(0, endMarker)));
 		writer.append(chunkID, chunkData);
 		System.out.println("Chunk (" + chunkID.chunkNumber + "->" + chunkID.chunkNumberEnd + "), stream " + chunkID.streamID + " written to FS.");
 		
 		// Mark this as a sync point in the sequence file.
 		writer.sync();
+		
+		// Calculate what is left, dealloc the demux packets, and remove them from the buffer.
+		int actualChunkSize = 0;
+		Iterator<DemuxPacket> it = chunkBuffer.iterator();
+		DemuxPacket currPacket = null;
+		int currIdx = 0;
+		while(it.hasNext())
+		{
+			if(currIdx != endMarker)
+			{
+				currPacket = it.next();
+				actualChunkSize += currPacket.data.limit();
+				currPacket.deallocData();
+				it.remove();
+				currIdx += 1;
+			}
+			else
+			{
+				break;
+			}
+			
+		}
 		
 		return actualChunkSize;
 	}

@@ -1,6 +1,7 @@
 package com.tstordyallison.ffmpegmr;
 
 import java.io.InputStream;
+import java.nio.ByteBuffer;
 
 public class Demuxer {
 	
@@ -12,7 +13,19 @@ public class Demuxer {
 		public int streamID;
 		public boolean splitPoint;
 		public long dts;
-		public byte[] data;
+		public ByteBuffer data;
+		public native int deallocData(); // Please for the love of god call me!
+		
+		// TODO: For debug only - this needs removed for production.
+		protected void finalize() throws Throwable {
+		    try {
+		    	// In case someone forgets... 
+		        if(deallocData() == 0)
+		        	System.err.println("DemuxPacket finalizer caught leak - the demuxer close() method should be called manually.");
+		    } finally {
+		        super.finalize();
+		    }
+		}
 	}
 
 	public Demuxer(String filename){
@@ -27,12 +40,26 @@ public class Demuxer {
 	
 	private native int initDemuxWithFile(String filename);
 	private native int initDemuxWithStream(InputStream stream);
+	
 	public native byte[] getStreamData(int streamID);
-	public native DemuxPacket getNextChunk();
-	public DemuxPacket getNextChunk2()
+	
+	public native DemuxPacket getNextChunkImpl();
+	public DemuxPacket getNextChunk()
 	{
-		return getNextChunk();
+		return getNextChunkImpl();
 	}
+	
 	public native int getStreamCount();
 	public native int close();
+	
+	protected void finalize() throws Throwable {
+	    try {
+	    	// In case someone forgets...
+	    	// TODO: turn this on when we have the object state stuff fixed in the JNI demuxer.
+	        //if(close() == 0)
+	        //	System.err.println("Demux finalizer caught leak - the demuxer close() method should be called manually.");
+	    } finally {
+	        super.finalize();
+	    }
+	}
 }

@@ -1,6 +1,7 @@
 #include <jni.h>
 #include <stdint.h> // (For the C99 types).
 #include "com_tstordyallison_ffmpegmr_Demuxer.h"
+#include "com_tstordyallison_ffmpegmr_Demuxer_DemuxPacket.h"
 
 #include "ffmpeg_tpl.h"
 
@@ -278,7 +279,7 @@ JNIEXPORT jint JNICALL Java_com_tstordyallison_ffmpegmr_Demuxer_getStreamCount
  *
  * Hopefully this method won't slow the whole thing down too much. If it does, we are screwed.
  */
-JNIEXPORT jobject JNICALL Java_com_tstordyallison_ffmpegmr_Demuxer_getNextChunk
+JNIEXPORT jobject JNICALL Java_com_tstordyallison_ffmpegmr_Demuxer_getNextChunkImpl
 (JNIEnv * env, jobject obj){
     DemuxState *state = getObjectState(env, obj);
     if(state != NULL)
@@ -300,6 +301,7 @@ JNIEXPORT jobject JNICALL Java_com_tstordyallison_ffmpegmr_Demuxer_getNextChunk
         
         // Generate the TPL.
         write_avpacket_chunk_to_memory(&state->pkt, &pkt_tpl_data, &pkt_tpl_size);
+        av_free_packet(&state->pkt);
                                        
         // Create the DemuxPacket object.
         jclass      dpkt_clazz = (*env)->FindClass(env, "com/tstordyallison/ffmpegmr/Demuxer$DemuxPacket");
@@ -310,7 +312,7 @@ JNIEXPORT jobject JNICALL Java_com_tstordyallison_ffmpegmr_Demuxer_getNextChunk
         jfieldID streamID = (*env)->GetFieldID(env,dpkt_clazz, "streamID", "I");
         jfieldID dts = (*env)->GetFieldID(env, dpkt_clazz, "dts", "J");
         jfieldID splitPoint = (*env)->GetFieldID(env, dpkt_clazz, "splitPoint", "Z");
-        jfieldID data = (*env)->GetFieldID(env, dpkt_clazz, "data", "[B");
+        jfieldID data = (*env)->GetFieldID(env, dpkt_clazz, "data", "Ljava/nio/ByteBuffer;");
         
         (*env)->SetIntField(env, dpkt, streamID, state->pkt.stream_index);
         (*env)->SetLongField(env, dpkt, dts, state->pkt.dts);
@@ -320,14 +322,10 @@ JNIEXPORT jobject JNICALL Java_com_tstordyallison_ffmpegmr_Demuxer_getNextChunk
         else
             (*env)->SetBooleanField(env, dpkt, splitPoint, JNI_FALSE);
         
-        // TODO: Change this to DirectMappedMemory so that we arent copying as much around.
-        jbyteArray output_data = (*env)->NewByteArray(env, pkt_tpl_size);
-        (*env)->SetByteArrayRegion(env, output_data, 0, pkt_tpl_size, (jbyte*)pkt_tpl_data);
-        (*env)->SetObjectField(env, dpkt, data, output_data);
+        jobject buffer = (*env)->NewDirectByteBuffer(env, pkt_tpl_data, (jlong)pkt_tpl_size);
+        (*env)->SetObjectField(env, dpkt, data, buffer);
         
-        // Release the temps.
-        av_free_packet(&state->pkt);
-        free(pkt_tpl_data);
+        // The buffer will be released when DemuxPacket_deallocData is called below.
         
         // Done.
         return dpkt;
@@ -335,6 +333,32 @@ JNIEXPORT jobject JNICALL Java_com_tstordyallison_ffmpegmr_Demuxer_getNextChunk
     else{
         fprintf(stderr, "Warning: failed to find object for a getNextChunk() call.\n");
         return NULL;
+    }
+}
+
+
+/*
+ * Class:     com_tstordyallison_ffmpegmr_Demuxer_DemuxPacket
+ * Method:    deallocData
+ * Signature: ()V
+ */
+JNIEXPORT jint JNICALL Java_com_tstordyallison_ffmpegmr_Demuxer_00024DemuxPacket_deallocData
+(JNIEnv * env, jobject obj)
+{
+    
+    jclass      dpkt_clazz = (*env)->FindClass(env, "com/tstordyallison/ffmpegmr/Demuxer$DemuxPacket");
+    jfieldID    data =       (*env)->GetFieldID(env, dpkt_clazz, "data", "Ljava/nio/ByteBuffer;");
+    jobject     buffer =     (*env)->GetObjectField(env, obj, data);
+    if(buffer != NULL)
+    {
+        void*       pkt_tpl_data = (*env)->GetDirectBufferAddress(env, buffer);
+        free(pkt_tpl_data); // Fingers crossed.
+        (*env)->SetObjectField(env, obj, data, NULL); 
+        return 0;
+    }
+    else
+    {
+        return -1;
     }
 }
 
