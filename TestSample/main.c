@@ -17,7 +17,7 @@
 #define AUDIO_INBUF_SIZE 20480
 #define AUDIO_REFILL_THRESH 4096
 #define DEBUG_SPLIT 1
-#define DEBUG_MERGE 1
+#define DEBUG_MERGE 0
 
 static int file_exists(char *fileName)
 {   
@@ -360,6 +360,11 @@ int main(int argc, char **argv)
 {
     av_register_all();
     avcodec_register_all();
+    
+    int i = 0;
+    
+    //for(i = 0; i < 20; i++)
+        //split_streams("/Volumes/FFmpegTest/Test.mp4", "/Volumes/FFmpegTest/Test.mp4");
     
     if(!split_streams("/Users/tom/Documents/FYP/Test.mp4", "/Users/tom/Documents/FYP/Test.mp4"))
         merge_streams("/Users/tom/Documents/FYP/Test.mp4", "/Users/tom/Documents/FYP/Test-Merged.mp4");

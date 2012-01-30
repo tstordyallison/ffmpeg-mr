@@ -12,7 +12,8 @@ public class Demuxer {
 	public static class DemuxPacket {
 		public int streamID;
 		public boolean splitPoint;
-		public long dts;
+		public long ts; // In microseconds.
+		public long duration; // In microseconds.
 		public ByteBuffer data;
 		public native int deallocData(); // Please for the love of god call me!
 		
@@ -21,10 +22,17 @@ public class Demuxer {
 		    try {
 		    	// In case someone forgets... 
 		        if(deallocData() == 0)
-		        	System.err.println("DemuxPacket finalizer caught leak - the demuxer close() method should be called manually.");
+		        	System.err.println("Leaked:" + toString());
 		    } finally {
 		        super.finalize();
 		    }
+		}
+
+		@Override
+		public String toString() {
+			return "[streamID=" + streamID + ", splitPoint="
+					+ splitPoint + ", ts=" + ts + ", duration=" + duration + ", "
+					+ (data != null ? "data=" + data.limit() + " bytes" : "") + "]";
 		}
 	}
 
@@ -55,9 +63,8 @@ public class Demuxer {
 	protected void finalize() throws Throwable {
 	    try {
 	    	// In case someone forgets...
-	    	// TODO: turn this on when we have the object state stuff fixed in the JNI demuxer.
-	        //if(close() == 0)
-	        //	System.err.println("Demux finalizer caught leak - the demuxer close() method should be called manually.");
+	        if(close() == 0)
+	        	System.err.println("Demux finalizer caught leak - the demuxer close() method should be called manually.");
 	    } finally {
 	        super.finalize();
 	    }
