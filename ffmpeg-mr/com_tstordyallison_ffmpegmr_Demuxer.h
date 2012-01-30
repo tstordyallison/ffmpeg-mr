@@ -34,7 +34,7 @@ JNIEXPORT jbyteArray JNICALL Java_com_tstordyallison_ffmpegmr_Demuxer_getStreamD
 /*
  * Class:     com_tstordyallison_ffmpegmr_Demuxer
  * Method:    getNextChunkImpl
- * Signature: ()Lcom/tstordyallison/ffmpegmr/Demuxer/DemuxPacket;
+ * Signature: ()Lcom/tstordyallison/ffmpegmr/DemuxPacket;
  */
 JNIEXPORT jobject JNICALL Java_com_tstordyallison_ffmpegmr_Demuxer_getNextChunkImpl
   (JNIEnv *, jobject);

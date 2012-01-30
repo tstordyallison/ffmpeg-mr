@@ -8,10 +8,6 @@ import java.util.List;
 import java.util.ListIterator;
 import java.util.concurrent.BlockingQueue;
 
-import com.tstordyallison.ffmpegmr.Chunker.Chunk;
-import com.tstordyallison.ffmpegmr.Chunker.ChunkData;
-import com.tstordyallison.ffmpegmr.Chunker.ChunkID;
-import com.tstordyallison.ffmpegmr.Demuxer.DemuxPacket;
 import com.tstordyallison.ffmpegmr.util.Printer;
 
 public class ChunkerThread extends Thread {
@@ -150,7 +146,6 @@ public class ChunkerThread extends Thread {
 									Math.min(chunkPoints.size(), 20)) : "")
 					+ "\n]";
 		}
-		
 		
 	}
 

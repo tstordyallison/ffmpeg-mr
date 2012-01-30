@@ -10,8 +10,8 @@ import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 
 import com.tstordyallison.ffmpegmr.Chunker;
+import com.tstordyallison.ffmpegmr.DemuxPacket;
 import com.tstordyallison.ffmpegmr.Demuxer;
-import com.tstordyallison.ffmpegmr.Demuxer.DemuxPacket;
 import com.tstordyallison.ffmpegmr.util.FileUtils;
 import com.tstordyallison.ffmpegmr.util.Printer;
 import com.tstordyallison.ffmpegmr.util.Stopwatch;
@@ -44,10 +44,10 @@ public class ChunkTest {
 		// -----
 		// Local conversion tests.
 		// -----
-		//chunkWithTimer("/Users/tom/Documents/FYP/Test.mp4", "file:///Users/tom/Documents/FYP/Test.mp4.seq");
+		chunkWithTimer("/Users/tom/Documents/FYP/Test.mp4", "file:///Users/tom/Documents/FYP/Test.mp4.seq");
 		chunkWithTimer("/Users/tom/Documents/FYP/Test.mkv", "file:///Users/tom/Documents/FYP/Test.mkv.seq");
-		//chunkWithTimer("/Users/tom/Documents/FYP/Test.wmv", "file:///Users/tom/Documents/FYP/Test.wmv.seq");
-		//chunkWithTimer("/Users/tom/Documents/FYP/Test.avi", "file:///Users/tom/Documents/FYP/Test.avi.seq");
+		chunkWithTimer("/Users/tom/Documents/FYP/Test.wmv", "file:///Users/tom/Documents/FYP/Test.wmv.seq");
+		chunkWithTimer("/Users/tom/Documents/FYP/Test.avi", "file:///Users/tom/Documents/FYP/Test.avi.seq");
 		//System.gc();
 		
 		// -----

@@ -12,7 +12,6 @@
 		E2420C1B144CBDB600E11A39 /* libmp3lame.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = E2420C1A144CBDB600E11A39 /* libmp3lame.dylib */; };
 		E2420C1D144CBDBF00E11A39 /* libx264.118.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = E2420C1C144CBDBF00E11A39 /* libx264.118.dylib */; };
 		E2614D0E14ABD0E0002DB9B7 /* libffmpeg-mr.jnilib in CopyFiles */ = {isa = PBXBuildFile; fileRef = E2848C6D1430E35500E06673 /* libffmpeg-mr.jnilib */; };
-		E2614D1014ABE88D002DB9B7 /* com_tstordyallison_ffmpegmr_Demuxer_DemuxPacket.h in Headers */ = {isa = PBXBuildFile; fileRef = E2614D0F14ABE88D002DB9B7 /* com_tstordyallison_ffmpegmr_Demuxer_DemuxPacket.h */; };
 		E261B90B1445FE960041422A /* libavcodec.a in Frameworks */ = {isa = PBXBuildFile; fileRef = E261B9031445FE960041422A /* libavcodec.a */; };
 		E261B90C1445FE960041422A /* libavdevice.a in Frameworks */ = {isa = PBXBuildFile; fileRef = E261B9041445FE960041422A /* libavdevice.a */; };
 		E261B90D1445FE960041422A /* libavfilter.a in Frameworks */ = {isa = PBXBuildFile; fileRef = E261B9051445FE960041422A /* libavfilter.a */; };
@@ -41,6 +40,12 @@
 		E2C35A861457094400902770 /* libpostproc.a in Frameworks */ = {isa = PBXBuildFile; fileRef = E261B9081445FE960041422A /* libpostproc.a */; };
 		E2C35A871457094500902770 /* libswresample.a in Frameworks */ = {isa = PBXBuildFile; fileRef = E261B9091445FE960041422A /* libswresample.a */; };
 		E2C35A881457094600902770 /* libswscale.a in Frameworks */ = {isa = PBXBuildFile; fileRef = E261B90A1445FE960041422A /* libswscale.a */; };
+		E2C9C90114D70893007668A0 /* com_tstordyallison_ffmpegmr_DemuxPacket.h in Headers */ = {isa = PBXBuildFile; fileRef = E2C9C90014D70893007668A0 /* com_tstordyallison_ffmpegmr_DemuxPacket.h */; };
+		E2C9C90314D7089A007668A0 /* com_tstordyallison_ffmpegmr_Transcoder.h in Headers */ = {isa = PBXBuildFile; fileRef = E2C9C90214D7089A007668A0 /* com_tstordyallison_ffmpegmr_Transcoder.h */; };
+		E2C9C90514D72219007668A0 /* Transcoder.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E2C9C90414D72219007668A0 /* Transcoder.cpp */; };
+		E2C9C90A14D72320007668A0 /* JNI.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E2C9C90914D7231F007668A0 /* JNI.cpp */; };
+		E2C9C90C14D74266007668A0 /* SharedUtil.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E2C9C90B14D74266007668A0 /* SharedUtil.cpp */; };
+		E2C9C90E14D74281007668A0 /* SharedUtil.h in Headers */ = {isa = PBXBuildFile; fileRef = E2C9C90D14D74280007668A0 /* SharedUtil.h */; };
 		E2EE1A5E147419B600B0B10F /* ffmpeg_tpl.c in Sources */ = {isa = PBXBuildFile; fileRef = E261E43D14718FF700421617 /* ffmpeg_tpl.c */; };
 /* End PBXBuildFile section */
 
@@ -81,7 +86,6 @@
 		E24208C3144CB96600E11A39 /* libz.1.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libz.1.dylib; path = usr/lib/libz.1.dylib; sourceTree = SDKROOT; };
 		E2420C1A144CBDB600E11A39 /* libmp3lame.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libmp3lame.dylib; path = usr/local/lib/libmp3lame.dylib; sourceTree = SDKROOT; };
 		E2420C1C144CBDBF00E11A39 /* libx264.118.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libx264.118.dylib; path = usr/local/lib/libx264.118.dylib; sourceTree = SDKROOT; };
-		E2614D0F14ABE88D002DB9B7 /* com_tstordyallison_ffmpegmr_Demuxer_DemuxPacket.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = com_tstordyallison_ffmpegmr_Demuxer_DemuxPacket.h; sourceTree = "<group>"; };
 		E261B9031445FE960041422A /* libavcodec.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libavcodec.a; path = ../ffmpeg/libavcodec/libavcodec.a; sourceTree = "<group>"; };
 		E261B9041445FE960041422A /* libavdevice.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libavdevice.a; path = ../ffmpeg/libavdevice/libavdevice.a; sourceTree = "<group>"; };
 		E261B9051445FE960041422A /* libavfilter.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libavfilter.a; path = ../ffmpeg/libavfilter/libavfilter.a; sourceTree = "<group>"; };
@@ -101,6 +105,12 @@
 		E2848CCB1430E4D200E06673 /* ffmpeg.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = ffmpeg.xcodeproj; path = ../ffmpeg/ffmpeg.xcodeproj; sourceTree = "<group>"; };
 		E2C35A73145708D600902770 /* TestSample */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = TestSample; sourceTree = BUILT_PRODUCTS_DIR; };
 		E2C35A76145708D600902770 /* main.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = main.c; sourceTree = "<group>"; };
+		E2C9C90014D70893007668A0 /* com_tstordyallison_ffmpegmr_DemuxPacket.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = com_tstordyallison_ffmpegmr_DemuxPacket.h; sourceTree = "<group>"; };
+		E2C9C90214D7089A007668A0 /* com_tstordyallison_ffmpegmr_Transcoder.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = com_tstordyallison_ffmpegmr_Transcoder.h; sourceTree = "<group>"; };
+		E2C9C90414D72219007668A0 /* Transcoder.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = Transcoder.cpp; sourceTree = "<group>"; };
+		E2C9C90914D7231F007668A0 /* JNI.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = JNI.cpp; sourceTree = "<group>"; };
+		E2C9C90B14D74266007668A0 /* SharedUtil.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = SharedUtil.cpp; sourceTree = "<group>"; };
+		E2C9C90D14D74280007668A0 /* SharedUtil.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = SharedUtil.h; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -188,9 +198,12 @@
 		E2848C6F1430E35500E06673 /* ffmpeg-mr */ = {
 			isa = PBXGroup;
 			children = (
-				E2614D0F14ABE88D002DB9B7 /* com_tstordyallison_ffmpegmr_Demuxer_DemuxPacket.h */,
-				E271FD98149EB36200A81A15 /* com_tstordyallison_ffmpegmr_Demuxer.h */,
+				E2C9C90F14D744BF007668A0 /* JNI Headers */,
+				E2C9C90914D7231F007668A0 /* JNI.cpp */,
 				E271FD9D149EC90900A81A15 /* Demuxer.cpp */,
+				E2C9C90414D72219007668A0 /* Transcoder.cpp */,
+				E2C9C90D14D74280007668A0 /* SharedUtil.h */,
+				E2C9C90B14D74266007668A0 /* SharedUtil.cpp */,
 			);
 			path = "ffmpeg-mr";
 			sourceTree = "<group>";
@@ -231,6 +244,16 @@
 			path = TestSample;
 			sourceTree = "<group>";
 		};
+		E2C9C90F14D744BF007668A0 /* JNI Headers */ = {
+			isa = PBXGroup;
+			children = (
+				E2C9C90014D70893007668A0 /* com_tstordyallison_ffmpegmr_DemuxPacket.h */,
+				E2C9C90214D7089A007668A0 /* com_tstordyallison_ffmpegmr_Transcoder.h */,
+				E271FD98149EB36200A81A15 /* com_tstordyallison_ffmpegmr_Demuxer.h */,
+			);
+			name = "JNI Headers";
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXHeadersBuildPhase section */
@@ -241,7 +264,9 @@
 				E261E4391471889800421617 /* tpl.h in Headers */,
 				E261E4401471901900421617 /* ffmpeg_tpl.h in Headers */,
 				E271FD9B149EB36200A81A15 /* com_tstordyallison_ffmpegmr_Demuxer.h in Headers */,
-				E2614D1014ABE88D002DB9B7 /* com_tstordyallison_ffmpegmr_Demuxer_DemuxPacket.h in Headers */,
+				E2C9C90114D70893007668A0 /* com_tstordyallison_ffmpegmr_DemuxPacket.h in Headers */,
+				E2C9C90314D7089A007668A0 /* com_tstordyallison_ffmpegmr_Transcoder.h in Headers */,
+				E2C9C90E14D74281007668A0 /* SharedUtil.h in Headers */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -331,7 +356,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "cd $PROJECT_DIR/$PROJECT/\njavah -jni com.tstordyallison.ffmpegmr.Transcoder\njavah -jni com.tstordyallison.ffmpegmr.Demuxer";
+			shellScript = "cd $PROJECT_DIR/$PROJECT/\njavah -jni com.tstordyallison.ffmpegmr.Transcoder\njavah -jni com.tstordyallison.ffmpegmr.Demuxer\njavah -jni com.tstordyallison.ffmpegmr.DemuxPacket";
 		};
 		E24208C1144CAEFF00E11A39 /* ShellScript */ = {
 			isa = PBXShellScriptBuildPhase;
@@ -356,7 +381,10 @@
 			files = (
 				E261E4381471889800421617 /* tpl.c in Sources */,
 				E261E43E14718FF700421617 /* ffmpeg_tpl.c in Sources */,
+				E2C9C90A14D72320007668A0 /* JNI.cpp in Sources */,
 				E271FD9E149EC90900A81A15 /* Demuxer.cpp in Sources */,
+				E2C9C90514D72219007668A0 /* Transcoder.cpp in Sources */,
+				E2C9C90C14D74266007668A0 /* SharedUtil.cpp in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -1,8 +1,9 @@
 #include <jni.h>
 #include "com_tstordyallison_ffmpegmr_Demuxer.h"
-#include "com_tstordyallison_ffmpegmr_Demuxer_DemuxPacket.h"
-
+#include "com_tstordyallison_ffmpegmr_DemuxPacket.h"
+#include "SharedUtil.h"
 #include <map>
+
 using namespace std;
 
 extern "C" {
@@ -16,30 +17,6 @@ extern "C" {
     #include "libavutil/mathematics.h"
 }
 
-// Util methods.
-// --------
-
-static void print_file_error(const char *filename, int err)
-{
-    char errbuf[128];
-    const char *errbuf_ptr = errbuf;
-    
-    if (av_strerror(err, errbuf, sizeof(errbuf)) < 0)
-        errbuf_ptr = strerror(AVUNERROR(err));
-    fprintf(stderr, "%s: %s\n", filename, errbuf_ptr);
-}
-
-static int getHashCode(JNIEnv* env, jobject obj)
-{
-    jclass clazz  = env->GetObjectClass(obj);
-    jmethodID mid = env->GetMethodID(clazz, "hashCode", "()I");
-    jint hashCode = env->CallIntMethod(obj, mid);
-    return (int)hashCode;
-}
-
-
-// Main Demuxer State List.
-// --------
 
 struct DemuxState {
     AVFormatContext *fmt_ctx;
@@ -52,70 +29,67 @@ struct DemuxState {
 };
 const struct DemuxState DEMUXSTATE_DEFAULT = {NULL, NULL, -1, NULL, NULL, NULL, NULL};
 
-static map<int, DemuxState*> objectRegister; // Object register.
-
-static DemuxState *getObjectState(JNIEnv *env, jobject obj)
-{
-    int hashCode = getHashCode(env, obj);
-    if(objectRegister.find(hashCode) != objectRegister.end())
+class DemuxTracker {
+    
+private:
+    map<int, DemuxState*> objectRegister; // Object register.
+    
+public:
+    DemuxState *getObjectState(JNIEnv *env, jobject obj)
     {
-        return objectRegister[hashCode];
-    }
-    return NULL;
-}
-
-static void unregisterObjectState(JNIEnv *env, jobject obj)
-{
-    DemuxState *state = getObjectState(env, obj);
-    if(state != NULL)
-    {
-        
-        // Free up the streams data.
-        if(state->stream_data != NULL)
-        {
-            for(int i = 0; i < state->stream_count; i++)
-            {
-                if(state->stream_data[i] != NULL)
-                    free(state->stream_data[i]); // free as these came from tpl.
-            }
-        }
-        delete[] state->stream_data;
-        
-        // Free the stream size data.
-        if(state->stream_data_sizes != NULL)
-            delete[] state->stream_data_sizes;
-        
-        // Close the format context (TODO: think about what to do here if we are stream).
-        if(state->fmt_ctx != NULL)
-            av_close_input_file(state->fmt_ctx);
-        
-        // Remove the state from the map.
         int hashCode = getHashCode(env, obj);
-        objectRegister.erase(hashCode);
-        
-        // Free the state.
-        delete state;
-    }
-}
+        if(objectRegister.find(hashCode) != objectRegister.end())
+        {
+            return objectRegister[hashCode];
+        }
+        return NULL;
+    };
+    
+    void registerObjectState(JNIEnv *env, jobject obj, DemuxState *objstate)
+    {
+        int hashCode = getHashCode(env, obj);
+        objectRegister[hashCode] = objstate;
+    };
+    
+    void unregisterObjectState(JNIEnv *env, jobject obj)
+    {
+        DemuxState *state = getObjectState(env, obj);
+        if(state != NULL)
+        {
+            
+            // Free up the streams data.
+            if(state->stream_data != NULL)
+            {
+                for(int i = 0; i < state->stream_count; i++)
+                {
+                    if(state->stream_data[i] != NULL)
+                        free(state->stream_data[i]); // free as these came from tpl.
+                }
+            }
+            delete[] state->stream_data;
+            
+            // Free the stream size data.
+            if(state->stream_data_sizes != NULL)
+                delete[] state->stream_data_sizes;
+            
+            // Close the format context (TODO: think about what to do here if we are stream).
+            if(state->fmt_ctx != NULL)
+                av_close_input_file(state->fmt_ctx);
+            
+            // Remove the state from the map.
+            int hashCode = getHashCode(env, obj);
+            objectRegister.erase(hashCode);
+            
+            // Free the state.
+            delete state;
+        }
+    };
+};
 
-static void registerObjectState(JNIEnv *env, jobject obj, DemuxState *objstate)
-{
-    int hashCode = getHashCode(env, obj);
-    objectRegister[hashCode] = objstate;
-}
+static DemuxTracker tracker;
 
 // JNI Methods.
 // --------
-
-JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void *reserved){
-    // Load up FFmpeg.
-    av_register_all();
-    avcodec_register_all();
-    
-    // Return the JVM version we need to run.
-    return (jint)JNI_VERSION_1_6;
-}
-
 
 /*
  * Class:     com_tstordyallison_ffmpegmr_Demuxer
@@ -131,9 +105,9 @@ JNIEXPORT jint JNICALL Java_com_tstordyallison_ffmpegmr_Demuxer_initDemuxWithFil
     const char *filename;
     
     // Init state and add them to the object register.
-    DemuxState *state = new DemuxState;
+    DemuxState *state = new DemuxState; 
     *state = DEMUXSTATE_DEFAULT;
-    registerObjectState(env, obj, state);
+    tracker.registerObjectState(env, obj, state);
     
     // Opens the file, reads the streams, generates stream TPL, prepares for read calls.
     // ---------
@@ -179,10 +153,10 @@ JNIEXPORT jint JNICALL Java_com_tstordyallison_ffmpegmr_Demuxer_initDemuxWithFil
     av_init_packet(&state->pkt);
     
     // Do some once only init on the dpkt object.
-    state->dpkt_clazz = env->FindClass("com/tstordyallison/ffmpegmr/Demuxer$DemuxPacket");
+    state->dpkt_clazz = env->FindClass("com/tstordyallison/ffmpegmr/DemuxPacket");
     if(state->dpkt_clazz == NULL) 
     {
-        fprintf(stderr, "Could not find the com/tstordyallison/ffmpegmr/Demuxer$DemuxPacket class in the JVM.\n");
+        fprintf(stderr, "Could not find the com/tstordyallison/ffmpegmr/DemuxPacket class in the JVM.\n");
         err = -1;
         goto failure;
     }
@@ -194,7 +168,7 @@ failure:
         env->ReleaseStringUTFChars(jfilename, filename);
     
     if(err != 0){
-        unregisterObjectState(env, obj);
+        tracker.unregisterObjectState(env, obj);
         return err;
     }else
         return 0;
@@ -250,7 +224,7 @@ static int64_t Java_InputStream_Seek(/*jobject*/ void *jni_input_stream, int64_t
  */
 JNIEXPORT jbyteArray JNICALL Java_com_tstordyallison_ffmpegmr_Demuxer_getStreamData
 (JNIEnv * env, jobject obj, jint stream_idx){
-    DemuxState *state = getObjectState(env, obj);
+    DemuxState *state = tracker.getObjectState(env, obj);
     if(state != NULL)
     {
         jbyteArray output = env->NewByteArray(state->stream_data_sizes[stream_idx]);
@@ -270,7 +244,7 @@ JNIEXPORT jbyteArray JNICALL Java_com_tstordyallison_ffmpegmr_Demuxer_getStreamD
  */
 JNIEXPORT jint JNICALL Java_com_tstordyallison_ffmpegmr_Demuxer_getStreamCount
 (JNIEnv * env, jobject obj){
-    DemuxState *state = getObjectState(env, obj);
+    DemuxState *state = tracker.getObjectState(env, obj);
     if(state != NULL)
     {
         return state->stream_count;
@@ -314,7 +288,7 @@ static long getPacketDuration(AVStream *stream, AVPacket pkt){
  */
 JNIEXPORT jobject JNICALL Java_com_tstordyallison_ffmpegmr_Demuxer_getNextChunkImpl
 (JNIEnv * env, jobject obj){
-    DemuxState *state = getObjectState(env, obj);
+    DemuxState *state = tracker.getObjectState(env, obj);
     if(state != NULL)
     {
         // Read the next AVPacket from the input.
@@ -337,7 +311,7 @@ JNIEXPORT jobject JNICALL Java_com_tstordyallison_ffmpegmr_Demuxer_getNextChunkI
         av_free_packet(&state->pkt);
                                        
         // Create the DemuxPacket object.
-        jclass      dpkt_clazz = env->FindClass("com/tstordyallison/ffmpegmr/Demuxer$DemuxPacket");
+        jclass      dpkt_clazz = env->FindClass("com/tstordyallison/ffmpegmr/DemuxPacket");
         jmethodID   dpkt_ctr = env->GetMethodID(dpkt_clazz, "<init>", "()V");
         jobject     dpkt = env->NewObject(dpkt_clazz, dpkt_ctr);
         
@@ -377,11 +351,11 @@ JNIEXPORT jobject JNICALL Java_com_tstordyallison_ffmpegmr_Demuxer_getNextChunkI
  * Method:    deallocData
  * Signature: ()V
  */
-JNIEXPORT jint JNICALL Java_com_tstordyallison_ffmpegmr_Demuxer_00024DemuxPacket_deallocData
+JNIEXPORT jint JNICALL Java_com_tstordyallison_ffmpegmr_DemuxPacket_deallocData
 (JNIEnv * env, jobject obj)
 {
     
-    jclass      dpkt_clazz = env->FindClass("com/tstordyallison/ffmpegmr/Demuxer$DemuxPacket");
+    jclass      dpkt_clazz = env->FindClass("com/tstordyallison/ffmpegmr/DemuxPacket");
     jfieldID    data =       env->GetFieldID(dpkt_clazz, "data", "Ljava/nio/ByteBuffer;");
     jobject     buffer =     env->GetObjectField(obj, data);
     if(buffer != NULL)
@@ -404,11 +378,11 @@ JNIEXPORT jint JNICALL Java_com_tstordyallison_ffmpegmr_Demuxer_00024DemuxPacket
  */
 JNIEXPORT jint JNICALL Java_com_tstordyallison_ffmpegmr_Demuxer_close
 (JNIEnv * env, jobject obj){
-    DemuxState *state = getObjectState(env, obj);
+    DemuxState *state = tracker.getObjectState(env, obj);
     if(state != NULL)
     {
         // Unregister the object state.
-        unregisterObjectState(env, obj);
+        tracker.unregisterObjectState(env, obj);
 
         return 0;
     }

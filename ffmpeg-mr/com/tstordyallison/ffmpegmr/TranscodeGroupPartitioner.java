@@ -4,13 +4,12 @@ import org.apache.hadoop.conf.Configurable;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.mapreduce.Partitioner;
 
-import com.tstordyallison.ffmpegmr.Chunker;
 
 /**
  *
  * @author tom
  */
-public class TranscodeGroupPartitioner extends Partitioner<Chunker.ChunkID, Chunker.ChunkData> implements Configurable {
+public class TranscodeGroupPartitioner extends Partitioner<ChunkID, ChunkData> implements Configurable {
 
     private Configuration conf;
 
@@ -30,7 +29,7 @@ public class TranscodeGroupPartitioner extends Partitioner<Chunker.ChunkID, Chun
     }
 
     @Override
-    public int getPartition(Chunker.ChunkID key, Chunker.ChunkData value, int numReduceTasks) {
+    public int getPartition(ChunkID key, ChunkData value, int numReduceTasks) {
     	// conf.getString("dts_max")
     	// conf.getString("num_outputs")
         // TODO return a partition in [0, numReduceTasks)

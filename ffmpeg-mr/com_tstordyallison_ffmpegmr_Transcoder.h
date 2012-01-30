@@ -7,6 +7,30 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+/*
+ * Class:     com_tstordyallison_ffmpegmr_Transcoder
+ * Method:    initWithBytes
+ * Signature: ([J[B)I
+ */
+JNIEXPORT jint JNICALL Java_com_tstordyallison_ffmpegmr_Transcoder_initWithBytes
+  (JNIEnv *, jobject, jlongArray, jbyteArray);
+
+/*
+ * Class:     com_tstordyallison_ffmpegmr_Transcoder
+ * Method:    hasMoreData
+ * Signature: ()Z
+ */
+JNIEXPORT jboolean JNICALL Java_com_tstordyallison_ffmpegmr_Transcoder_hasMoreData
+  (JNIEnv *, jobject);
+
+/*
+ * Class:     com_tstordyallison_ffmpegmr_Transcoder
+ * Method:    getNextPacket
+ * Signature: ()Lcom/tstordyallison/ffmpegmr/DemuxPacket;
+ */
+JNIEXPORT jobject JNICALL Java_com_tstordyallison_ffmpegmr_Transcoder_getNextPacket
+  (JNIEnv *, jobject);
+
 #ifdef __cplusplus
 }
 #endif

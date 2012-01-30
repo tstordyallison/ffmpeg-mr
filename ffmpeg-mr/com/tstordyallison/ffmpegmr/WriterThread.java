@@ -11,9 +11,6 @@ import org.apache.hadoop.io.IOUtils;
 import org.apache.hadoop.io.SequenceFile;
 import org.apache.hadoop.io.SequenceFile.CompressionType;
 
-import com.tstordyallison.ffmpegmr.Chunker.Chunk;
-import com.tstordyallison.ffmpegmr.Chunker.ChunkData;
-import com.tstordyallison.ffmpegmr.Chunker.ChunkID;
 import com.tstordyallison.ffmpegmr.util.Printer;
 
 public class WriterThread extends Thread {
