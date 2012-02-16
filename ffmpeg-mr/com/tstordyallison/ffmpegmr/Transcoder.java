@@ -25,6 +25,16 @@ public class Transcoder
 	}
 
 	private native int initWithBytes(long[] chunkPointsNative, byte[] data);
-	public native boolean hasMoreData();
 	public native DemuxPacket getNextPacket();
+	public native int close();
+	
+	protected void finalize() throws Throwable {
+	    try {
+	    	// In case someone forgets...
+	        if(close() == 0)
+	        	System.err.println("Transcoder finalizer caught leak - the Transcoder close() method should be called manually.");
+	    } finally {
+	        super.finalize();
+	    }
+	}
 }

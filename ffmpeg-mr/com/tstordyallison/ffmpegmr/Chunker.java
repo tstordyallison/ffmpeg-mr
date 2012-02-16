@@ -14,7 +14,7 @@ public class Chunker {
 	public static double CHUNK_SIZE_FACTOR = 1;
 	
 	public static void chunkInputFile(File file, String hadoopUri) throws IOException, InterruptedException{
-		Printer.println("Processing " + file.getName() + "...");
+		Printer.println("Demuxing " + file.getName() + "...");
 		
 		// Check file.
 		if(!file.exists())
@@ -32,7 +32,7 @@ public class Chunker {
 		chunker.join(); writer.join();
 		
 		// Job done!
-		Printer.println("Sucessfully processed " + file.getName() + ".");
+		Printer.println("Sucessfully Demuxed " + file.getName() + ".");
 	
 	}
 		

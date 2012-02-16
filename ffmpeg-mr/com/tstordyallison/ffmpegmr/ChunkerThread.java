@@ -214,7 +214,7 @@ public class ChunkerThread extends Thread {
 		
 			chunkQ.put(new Chunk(null, null));
 			
-			Printer.println("Buffers:\n" + chunkBuffers.toString());
+			//Printer.println("Buffers:\n" + chunkBuffers.toString());
 			
 		} catch (InterruptedException e) {
 			if(chunkBuffers != null)

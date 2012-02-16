@@ -26,7 +26,7 @@ public class ChunkTest {
 	public static void main(String[] args) throws IOException, InterruptedException {
 		
 		Chunker.CHUNK_Q_LIMIT = 10;
-		Chunker.CHUNK_SIZE_FACTOR = 1; 
+		Chunker.CHUNK_SIZE_FACTOR = 0.5; 
 		Printer.ENABLED = true;
 		
 		// Test code:
@@ -35,26 +35,26 @@ public class ChunkTest {
 		//for(int i = 1; i <= loopcount; i++)
 		//{
 			//System.out.println("\n-------------\nTest run " + i + ":\n-------------");
-			//avg += chunkWithTimer("/Users/tom/Documents/FYP/Test.mkv", "file:///Users/tom/Documents/FYP/Test.mkv.seq");
+			//avg += chunkWithTimer("/Users/tom/Code/fyp/example-videos/Test.mkv", "file:///Users/tom/Code/fyp/example-videos/Test.mkv.seq");
 			//avg += chunkWithTimer("/Volumes/FFmpegTest/Test.mp4", "file:///Volumes/FFmpegTest/Test.mp4.seq");
-			//avg += chunkWithTimer("/Users/tom/Documents/FYP/Test.avi", "file:///Users/tom/Documents/FYP/Test.avi.seq");
+			//avg += chunkWithTimer("/Users/tom/Code/fyp/example-videos/Test.avi", "file:///Users/tom/Code/fyp/example-videos/Test.avi.seq");
 		//}
 		//System.out.printf("\n-----\nThroughput avg overall for " + FileUtils.humanReadableByteCount((long)((double)avg/(loopcount)), false) + "/s\n-----\n\n");
 		
 		// -----
 		// Local conversion tests.
 		// -----
-		chunkWithTimer("/Users/tom/Documents/FYP/Test.mp4", "file:///Users/tom/Documents/FYP/Test.mp4.seq");
-		chunkWithTimer("/Users/tom/Documents/FYP/Test.mkv", "file:///Users/tom/Documents/FYP/Test.mkv.seq");
-		chunkWithTimer("/Users/tom/Documents/FYP/Test.wmv", "file:///Users/tom/Documents/FYP/Test.wmv.seq");
-		chunkWithTimer("/Users/tom/Documents/FYP/Test.avi", "file:///Users/tom/Documents/FYP/Test.avi.seq");
+		//chunkWithTimer("/Users/tom/Code/fyp/example-videos/Test.mp4", "file:///Users/tom/Code/fyp/example-videos/Test.mp4.seq");
+		//chunkWithTimer("/Users/tom/Code/fyp/example-videos/Test.mkv", "file:///Users/tom/Code/fyp/example-videos/Test.mkv.seq");
+		//chunkWithTimer("/Users/tom/Code/fyp/example-videos/Test.wmv", "file:///Users/tom/Code/fyp/example-videos/Test.wmv.seq");
+		chunkWithTimer("/Users/tom/Code/fyp/example-videos/Test.avi", "file:///Users/tom/Code/fyp/example-videos/Test.avi.seq");
 		//System.gc();
 		
 		// -----
 		// S3 Upload tests.
 		// -----
-		//chunkWithTimer("/Users/tom/Documents/FYP/Test.mp4", "Test.mp4.seq");
-		//chunkWithTimer("/Users/tom/Documents/FYP/Test.avi", "Test.avi.seq");
+		//chunkWithTimer("/Users/tom/Code/fyp/example-videos/Test.mp4", "Test.mp4.seq");
+		//chunkWithTimer("/Users/tom/Code/fyp/example-videos/Test.avi", "Test.avi.seq");
 		//chunkWithTimer("/Volumes/Movies and TV/TV Shows/Stargate SG1/Season 1/Stargate.SG1-s01e13.The.Nox.m4v", "Stargate.SG1-s01e13.The.Nox.m4v.seq");
 		//listFiles("/");
 	}
