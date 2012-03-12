@@ -10,17 +10,18 @@ import java.util.Iterator;
 import java.util.List;
 
 import org.apache.hadoop.io.Writable;
+import org.apache.hadoop.io.WritableComparable;
 import org.joda.time.Period;
 import org.joda.time.format.PeriodFormat;
 
-public class ChunkID implements Writable, Comparable<ChunkID> {
+public class ChunkID implements Writable, WritableComparable<ChunkID>, Comparable<ChunkID> {
 	// TODO: Sort this mess out. This started off as a struct, but is now an object.  
 	
 	public int streamID;    	// Input file stream ID. 
 	public long startTS; 		// The first ts value in this chunk.
 	public long endTS; 			// The last ts value in this chunk + duration of the last pkt.
 	public long chunkNumber; 	// Numerical counter for debugging.
-	public List<Long> outputChunkPoints = new ArrayList<Long>(); // Stores the extra points at which this chunk will split on encode.
+	public List<Long> outputChunkPoints = new ArrayList<Long>(); // Stores the extra points at which this chunk will split on encode
 	
 	@Override
 	public void write(DataOutput out) throws IOException {
@@ -56,12 +57,19 @@ public class ChunkID implements Writable, Comparable<ChunkID> {
 	
 	@Override
 	public String toString() {
+		try{
 		return "ChunkID [\n\t\tstreamID =\t" + streamID + ", " 
 				+ "\n\t\tstartTS =\t" + startTS + " (" + PeriodFormat.getDefault().print(new Period(startTS/1000)) + "), "
 				+ "\n\t\tendTS =\t\t" + endTS + " (" + PeriodFormat.getDefault().print(new Period(endTS/1000)) + "), "
 				+ "\n\t\tduration =\t" + (endTS-startTS) + " (" + PeriodFormat.getDefault().print(new Period((endTS-startTS)/1000)) + "), "
 				+ "\n\t\tchunkPoints =\t" + toString(outputChunkPoints, Integer.MAX_VALUE)
 				+ "\n\t\tchunkNumber =\t" + chunkNumber + "\n]";
+		}
+		catch(RuntimeException e)
+		{
+			System.err.println(startTS);
+			throw e;
+		}
 	}
 	
 	@Override

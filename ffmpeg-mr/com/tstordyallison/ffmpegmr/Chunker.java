@@ -5,7 +5,6 @@ import java.io.IOException;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 
-
 import com.tstordyallison.ffmpegmr.util.Printer;
 
 public class Chunker {
@@ -13,7 +12,7 @@ public class Chunker {
 	public static int 	 CHUNK_Q_LIMIT = 20;
 	public static double CHUNK_SIZE_FACTOR = 1;
 	
-	public static void chunkInputFile(File file, String hadoopUri) throws IOException, InterruptedException{
+	public static long chunkInputFile(File file, String hadoopUri) throws IOException, InterruptedException{
 		Printer.println("Demuxing " + file.getName() + "...");
 		
 		// Check file.
@@ -34,6 +33,7 @@ public class Chunker {
 		// Job done!
 		Printer.println("Sucessfully Demuxed " + file.getName() + ".");
 	
+		return chunker.getPacketCount();
 	}
 		
 }

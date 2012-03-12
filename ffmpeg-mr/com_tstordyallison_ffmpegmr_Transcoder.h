@@ -17,18 +17,18 @@ JNIEXPORT jint JNICALL Java_com_tstordyallison_ffmpegmr_Transcoder_initWithBytes
 
 /*
  * Class:     com_tstordyallison_ffmpegmr_Transcoder
- * Method:    hasMoreData
- * Signature: ()Z
- */
-JNIEXPORT jboolean JNICALL Java_com_tstordyallison_ffmpegmr_Transcoder_hasMoreData
-  (JNIEnv *, jobject);
-
-/*
- * Class:     com_tstordyallison_ffmpegmr_Transcoder
  * Method:    getNextPacket
  * Signature: ()Lcom/tstordyallison/ffmpegmr/DemuxPacket;
  */
 JNIEXPORT jobject JNICALL Java_com_tstordyallison_ffmpegmr_Transcoder_getNextPacket
+  (JNIEnv *, jobject);
+
+/*
+ * Class:     com_tstordyallison_ffmpegmr_Transcoder
+ * Method:    close
+ * Signature: ()I
+ */
+JNIEXPORT jint JNICALL Java_com_tstordyallison_ffmpegmr_Transcoder_close
   (JNIEnv *, jobject);
 
 #ifdef __cplusplus

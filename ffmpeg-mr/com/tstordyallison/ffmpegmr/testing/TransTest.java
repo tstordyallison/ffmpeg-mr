@@ -1,7 +1,7 @@
- package com.tstordyallison.ffmpegmr.testing;
+package com.tstordyallison.ffmpegmr.testing;
 
+import java.io.File;
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -9,6 +9,7 @@ import java.util.concurrent.LinkedBlockingQueue;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.SequenceFile;
 import org.apache.hadoop.mrunit.mapreduce.MapDriver;
 import org.apache.hadoop.mrunit.types.Pair;
@@ -16,28 +17,40 @@ import org.apache.hadoop.mrunit.types.Pair;
 import com.tstordyallison.ffmpegmr.Chunk;
 import com.tstordyallison.ffmpegmr.ChunkData;
 import com.tstordyallison.ffmpegmr.ChunkID;
-import com.tstordyallison.ffmpegmr.TranscodeMapper;
 import com.tstordyallison.ffmpegmr.WriterThread;
+import com.tstordyallison.ffmpegmr.hadoop.TranscodeMapper;
 import com.tstordyallison.ffmpegmr.util.Printer;
 
 public class TransTest {
 
-	/**
-	 * @param args
-	 * @throws IllegalAccessException 
-	 * @throws InstantiationException 
-	 * @throws IOException 
-	 * @throws InterruptedException 
-	 */
 	public static void main(String[] args) throws InstantiationException, IllegalAccessException, IOException, InterruptedException {
 		
+		Thread.setDefaultUncaughtExceptionHandler(new ThreadCatcher()); 
 		Printer.ENABLED = true;
 		
-		//runMapper("file:///Users/tom/Code/fyp/example-videos/Test.mp4.seq", "file:///Users/tom/Documents/FYP/Test.mp4.mapped.seq");
-		//runMapper("file:///Users/tom/Code/fyp/example-videos/Test.mkv.seq", "file:///Users/tom/Documents/FYP/Test.mkv.mapped.seq");
-		//runMapper("file:///Users/tom/Code/fyp/example-videos/Test.wmv.seq", "file:///Users/tom/Documents/FYP/Test.wmv.mapped.seq");
-		runMapper("file:///Users/tom/Code/fyp/example-videos/Test.avi.seq", "file:///Users/tom/Documents/FYP/Test.avi.mapped.seq");
-		
+		if(args.length == 2)
+		{
+			if(!args[0].startsWith("file://"))
+				args[0] = "file://" + args[0];
+			
+			if(!args[1].startsWith("file://"))
+				args[1] = "file://" + args[1];
+			
+			runMapper(args[0], args[1]);
+		}
+		else
+		{
+			//runMapper("file:///Users/tom/Code/fyp/example-videos/Test.mp4.seq", "file:///Users/tom/Code/fyp/example-videos/Test.mp4.mapped.seq");
+			//runMapper("file:///Users/tom/Code/fyp/example-videos/Test.m4v.seq", "file:///Users/tom/Code/fyp/example-videos/Test.m4v.mapped.seq");
+			//runMapper("file:///Users/tom/Code/fyp/example-videos/Test.mkv.seq", "file:///Users/tom/Code/fyp/example-videos/Test.mkv.mapped.seq");
+			//runMapper("file:///Users/tom/Code/fyp/example-videos/Test.wmv.seq", "file:///Users/tom/Code/fyp/example-videos/Test.wmv.mapped.seq");
+			runMapper("file:///Users/tom/Code/fyp/example-videos/Test.avi.seq", "file:///Users/tom/Code/fyp/example-videos/Test.avi.mapped.seq");
+		}
+	}
+	
+	public static void runMapper(File input, File output) throws InstantiationException, IllegalAccessException, IOException, InterruptedException
+	{
+		runMapper("file://" + input.getAbsolutePath(), "file://" + output.getAbsolutePath());
 	}
 	
 	public static void runMapper(String inputUri, String outputUri) throws InstantiationException, IllegalAccessException, IOException, InterruptedException
@@ -50,7 +63,7 @@ public class TransTest {
 		SequenceFile.Reader reader = new SequenceFile.Reader(FileSystem.get(config), path, config);
 		
 		TranscodeMapper mapper = new TranscodeMapper();
-		MapDriver<ChunkID,ChunkData,ChunkID,ChunkData> driver = new MapDriver<ChunkID,ChunkData,ChunkID,ChunkData>(mapper);
+		MapDriver<ChunkID,ChunkData,LongWritable,Chunk> driver = new MapDriver<ChunkID,ChunkData,LongWritable,Chunk>(mapper);
 		driver.setConfiguration(config);
 		
 		ChunkID key = (ChunkID)reader.getKeyClass().newInstance();
@@ -64,12 +77,12 @@ public class TransTest {
 		{
 			driver.setInput(key, value);
 			
-			List<Pair<ChunkID,ChunkData>> outputs = driver.run();
-			for(Pair<ChunkID, ChunkData> chunk : outputs)
-				chunkQ.put(new Chunk(chunk.getFirst(), chunk.getSecond()));
+			List<Pair<LongWritable,Chunk>> outputs = driver.run();
+			for(Pair<LongWritable,Chunk> chunk : outputs)
+				chunkQ.put(chunk.getSecond());
 		}
 		
-		chunkQ.put(new Chunk(null, null));
+		chunkQ.put(new Chunk(null, null)); // End the chunker.
 		reader.close();
 		
 		writer.join();

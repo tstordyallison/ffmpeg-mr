@@ -2,11 +2,13 @@ package com.tstordyallison.ffmpegmr;
 
 import java.util.List;
 
+import com.tstordyallison.ffmpegmr.util.NativeUtil;
+
 public class Transcoder
 {   
 	
 	static{
-		System.loadLibrary("ffmpeg-mr");
+		NativeUtil.loadFFmpegMR();
 	}
 	
 	// For now, we will just have a fixed output of:

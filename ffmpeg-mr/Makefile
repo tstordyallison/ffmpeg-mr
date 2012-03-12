@@ -1,0 +1,38 @@
+CC=gcc
+CCPP=g++
+OUTPUT=libffmpeg-mr.so
+
+JNIHEADERS=$(JAVA_HOME)/include
+JNIHEADERS2=$(JAVA_HOME)/include/linux
+FFMPEGOUTPUT=../ffmpeg
+
+CFLAGS= -fPIC -DDEBUG=1 -D__STDC_CONSTANT_MACROS -c -Wall -I. -I$(FFMPEGOUTPUT) -I$(JNIHEADERS) -I$(JNIHEADERS2)
+LDFLAGS=-L$(HOME)/build-ouptut/lib
+
+all: $(OUTPUT)
+
+$(OUTPUT): JNI.o SharedUtil.o ffmpeg_tpl.o Demuxer.o Transcoder.o
+	$(CCPP) -shared -Wl ffmpeg_tpl.o tpl.o JNI.o SharedUtil.o Demuxer.o Transcoder.o -lavcodec -lavformat -lavutil -lmp3lame -lx264 -lfaac -lz -lbz2 $(LDFLAGS) -o $(OUTPUT)
+	hadoop fs -put libffmpeg-mr.so s3://ffmpeg-mr/lib64/libffmpeg-mr.so
+	clean
+
+JNI.o: JNI.cpp
+	$(CCPP) $(CFLAGS) JNI.cpp
+
+SharedUtil.o: SharedUtil.cpp
+	$(CCPP) $(CFLAGS) SharedUtil.cpp
+
+ffmpeg_tpl.o: ffmpeg_tpl.c tpl.o
+	$(CC) $(CFLAGS) ffmpeg_tpl.c
+
+tpl.o: tpl.c
+	$(CC) $(CFLAGS) tpl.c
+
+Demuxer.o: Demuxer.cpp
+	$(CCPP) $(CFLAGS) Demuxer.cpp
+
+Transcoder.o: Transcoder.cpp
+	$(CCPP) $(CFLAGS) Transcoder.cpp
+
+clean:
+	rm -rf *.o

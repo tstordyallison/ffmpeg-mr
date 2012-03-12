@@ -16,8 +16,8 @@
 #define INBUF_SIZE 4096
 #define AUDIO_INBUF_SIZE 20480
 #define AUDIO_REFILL_THRESH 4096
-#define DEBUG_SPLIT 1
-#define DEBUG_MERGE 0
+#define DEBUG_SPLIT 0
+#define DEBUG_MERGE 1
 
 static int file_exists(char *fileName)
 {   
@@ -265,6 +265,16 @@ static int merge_streams(const char *filename_base, const char *output_filename)
         } else if (avcodec_open2(stream->codec, codec, NULL) < 0) {
             fprintf(stderr, "Error while opening codec for input stream %d\n", stream->index);
         }
+        
+        if(DEBUG_MERGE)
+        {
+            fprintf(stderr, "Post init CTB: %d/%d (1/=%2.2f)\n", stream->codec->time_base.num, stream->codec->time_base.den, (float)stream->codec->time_base.den/stream->codec->time_base.num);
+            fprintf(stderr, "Post init STB: %d/%d (1/=%2.2f)\n", stream->time_base.num, stream->time_base.den, (float)stream->time_base.den/stream->time_base.num);
+            fprintf(stderr, "Post init RTB: %d/%d (1/=%2.2f)\n", stream->time_base.den, stream->r_frame_rate.num, (float)stream->r_frame_rate.num/stream->r_frame_rate.den);
+            fprintf(stderr, "Post init TPF: %d\n", stream->codec->ticks_per_frame);
+        }
+        
+        stream->codec->ticks_per_frame = 1;
     }
     
     // Write out any headers for the output files.
@@ -300,8 +310,8 @@ static int merge_streams(const char *filename_base, const char *output_filename)
                 //dumpbuff(pkt.data, pkt.size);
             }
             
-            pkt.dts += 100000;
-            pkt.pts += 100000;
+           // pkt.dts += 100000;
+            //pkt.pts += 100000;
             
             int ret = av_interleaved_write_frame(output_format_context, &pkt);
             
@@ -366,8 +376,8 @@ int main(int argc, char **argv)
     //for(i = 0; i < 20; i++)
         //split_streams("/Volumes/FFmpegTest/Test.mp4", "/Volumes/FFmpegTest/Test.mp4");
     
-    if(!split_streams("/Users/tom/Documents/FYP/Test.mp4", "/Users/tom/Documents/FYP/Test.mp4"))
-        merge_streams("/Users/tom/Documents/FYP/Test.mp4", "/Users/tom/Documents/FYP/Test-Merged.mp4");
+    if(!split_streams("/Users/tom/Code/fyp/example-videos/Test.mp4", "/Users/tom/Code/fyp/example-videos/Test.mp4"))
+        merge_streams("/Users/tom/Code/fyp/example-videos/Test.mp4", "/Users/tom/Code/fyp/example-videos/Test-Merged.mp4");
     
 //    if(!split_streams("/Users/tom/Documents/FYP/Test.avi", "/Users/tom/Documents/FYP/Test.avi"))
 //        merge_streams("/Users/tom/Documents/FYP/Test.avi", "/Users/tom/Documents/FYP/Test-Merged.avi");

@@ -14,6 +14,7 @@ public class ChunkerThread extends Thread {
 	
 	public class ChunkBuffers {
 		
+		private long 					packetCount					= 0;
 		private List<ByteBuffer> 		streamHeaders 				= new ArrayList<ByteBuffer>(demuxer.getStreamCount()); 		
 		private List<List<DemuxPacket>> currentChunks				= new ArrayList<List<DemuxPacket>>(demuxer.getStreamCount()); 
 		private List<Integer> 			currentChunksSizes 			= new ArrayList<Integer>(demuxer.getStreamCount()); 			
@@ -34,8 +35,9 @@ public class ChunkerThread extends Thread {
 		}
 
 		public void add(DemuxPacket currentPacket) {
+			packetCount += 1;
 			currentChunks.get(currentPacket.streamID).add(currentPacket);
-			currentChunksSizes.set(currentPacket.streamID, currentChunksSizes.get(currentPacket.streamID) + currentPacket.data.limit());
+			currentChunksSizes.set(currentPacket.streamID, currentChunksSizes.get(currentPacket.streamID) + currentPacket.data.length);
 			
 			// Mark this if it is a split point.
 			if(currentPacket.splitPoint)
@@ -88,12 +90,9 @@ public class ChunkerThread extends Thread {
 			while(it.hasNext())
 			{
 				DemuxPacket currPacket = it.next();
-				actualChunkSize += currPacket.data.limit();
+				actualChunkSize += currPacket.data.length;
 				it.remove();
 			}
-			
-			// Give the data its size hint.
-			chunkData.givePacketsSizeHint(actualChunkSize);
 			
 			// Store the left over counter and increment the chunk counter, invalidate the end marker.
 			currentChunksSizes.set(streamID, currentChunksSizes.get(streamID) - actualChunkSize);
@@ -106,14 +105,14 @@ public class ChunkerThread extends Thread {
 			// Return the new chunk (this also calls retain on the data so we dealloc correctly).
 			return new Chunk(chunkID, chunkData);
 		}
-		
-		public void deallocBuffers()
-		{
-			// TODO dealloc buffers - this is if we need to stop suddenly.
-		}
 
 		public void setMaxEndMarker(int streamID){
 			endMarkers.set(streamID, Integer.MAX_VALUE);
+		}
+		
+		public long getPacketCount()
+		{
+			return packetCount;
 		}
 		
 		@Override
@@ -217,8 +216,6 @@ public class ChunkerThread extends Thread {
 			//Printer.println("Buffers:\n" + chunkBuffers.toString());
 			
 		} catch (InterruptedException e) {
-			if(chunkBuffers != null)
-				chunkBuffers.deallocBuffers();
 			System.err.println("Thread was interupped while waiting:");
 			e.printStackTrace();
 		}
@@ -228,6 +225,11 @@ public class ChunkerThread extends Thread {
 			Printer.println("Demuxing complete. Thread ending.");
 		}
 		
+	}
+
+	
+	public long getPacketCount() {
+		return chunkBuffers.getPacketCount();
 	}
 	
 }

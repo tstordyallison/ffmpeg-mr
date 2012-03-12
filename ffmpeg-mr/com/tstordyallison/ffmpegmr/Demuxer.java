@@ -2,10 +2,12 @@ package com.tstordyallison.ffmpegmr;
 
 import java.io.InputStream;
 
+import com.tstordyallison.ffmpegmr.util.NativeUtil;
+
 public class Demuxer {
 	
 	static{
-		System.loadLibrary("ffmpeg-mr");
+		NativeUtil.loadFFmpegMR();
 	}
 	
 	public Demuxer(String filename){

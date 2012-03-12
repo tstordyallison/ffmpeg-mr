@@ -13,44 +13,49 @@ import org.apache.hadoop.io.SequenceFile.CompressionType;
 
 import com.tstordyallison.ffmpegmr.util.Printer;
 
-public class WriterThread extends Thread {
+public class WriterThread extends Thread{
 
-	private BlockingQueue<Chunk> chunkQ;
+	public static boolean FILE_PER_CHUNK = false;
 	
+	public static int BLOCK_SIZE = 16777216;
+	
+	private BlockingQueue<Chunk> chunkQ;	
 	private String outputUri = "";
 	private Configuration conf;
 	private FileSystem fs;
 	private Path path;
 	private SequenceFile.Writer writer = null; 
-	private long blockSize;
+	private int blockSize = BLOCK_SIZE;
 	
 	public WriterThread(BlockingQueue<Chunk> chunkQ, String outputUri) {
 		super();
+		this.chunkQ = chunkQ;
+		this.outputUri = outputUri;
 		initFileSystem(chunkQ,outputUri);
 	}
 
 	public WriterThread(BlockingQueue<Chunk> chunkQ, String outputUri, String name) {
 		super(name);
+		this.chunkQ = chunkQ;
+		this.outputUri = outputUri;
 		initFileSystem(chunkQ,outputUri);
 	}
 
 	public WriterThread(BlockingQueue<Chunk> chunkQ, String outputUri, ThreadGroup group, String name) {
 		super(group, name);
+		this.chunkQ = chunkQ;
+		this.outputUri = outputUri;
 		initFileSystem(chunkQ,outputUri);
 	}
 	
 	public void initFileSystem(BlockingQueue<Chunk> chunkQ, String outputUri)
-	{
-		this.chunkQ = chunkQ;
-		this.outputUri = outputUri;
-		
+	{	
 		// Connect to the ouptut filesystem.
 		try {
 			conf = new Configuration();
-			conf.set("fs.default.name", "s3://01MDAYB509VJ53B2EK02:zwajpazry7Me7tnbYaw3ldoj5mbRDMFMHqYHgDmv@ffmpeg-mr/");
-			fs = FileSystem.get(URI.create(this.outputUri), conf);
-			path = new Path(this.outputUri);
-			setBlockSize(fs.getDefaultBlockSize());
+			conf.setInt("dfs.block.size", blockSize);
+			fs = FileSystem.get(URI.create(outputUri), conf);
+			path = new Path(outputUri);
 			writer = SequenceFile.createWriter(fs, conf, path, ChunkID.class, ChunkData.class, CompressionType.NONE);
 		} catch (IOException e) {
 			System.err.println("IO Error connecting to FS:");
@@ -71,9 +76,12 @@ public class WriterThread extends Thread {
 					Printer.println("Writing of final chunk complete. Writer thread stopping.");
 					break;
 				}
+				if(FILE_PER_CHUNK)
+					initFileSystem(chunkQ, outputUri + "." + chunk.getChunkID().streamID + "." + chunk.getChunkID().chunkNumber);
 				writer.append(chunk.getChunkID(), chunk.getChunkData());
+				if(FILE_PER_CHUNK)
+					writer.close();
 				Printer.println("Written: " + chunk.toString());
-				chunk.dealloc();
 			}
 			
 		} catch (InterruptedException e) {
@@ -89,11 +97,7 @@ public class WriterThread extends Thread {
 		}
 	}
 
-	private void setBlockSize(long blockSize) {
-		this.blockSize = blockSize;
-	}
-
-	public long getBlockSize() {
+	public int getBlockSize() {
 		return blockSize;
 	}
 }

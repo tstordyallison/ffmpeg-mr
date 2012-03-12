@@ -4,165 +4,96 @@ import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
-import java.util.Set;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.apache.hadoop.io.Writable;
 
 import com.tstordyallison.ffmpegmr.util.FileUtils;
-import com.tstordyallison.ffmpegmr.util.Printer;
 
 public class ChunkData implements Writable {
 
-	// List of ChunkIDs that this piece of data is used by.
-	private Set<ChunkID> chunkIDs = Collections.synchronizedSet(new HashSet<ChunkID>());
-	private AtomicBoolean dying = new AtomicBoolean(false);
-	
-	// Write mode.
-	private byte[] header = null;
-	private List<DemuxPacket> data = null;
-	private long pktssize = -1;
-	
-	// Read mode.
-	private byte[] rawData = null;
+	private byte[] rawData = null; // The raw binary data that this chunk stores.
+	public int packet_count; // Number of packets stored in this chunk.
 	
 	public ChunkData()
 	{
-		this.header = null;
-		this.data = null;
-	}
-	public ChunkData(byte[] header, List<DemuxPacket> packets)
-	{
-		this.header = header;
-		this.data = packets;
+		this.rawData = null;
+		this.packet_count = -1;
 	}
 	public ChunkData(List<DemuxPacket> packets)
 	{
-		this.header = null;
-		this.data = packets;
+		this(null, packets);
+	}
+	public ChunkData(byte[] header, List<DemuxPacket> packets)
+	{
+		// Count up the size of the demux packets.
+		int size = 0;
+		for(DemuxPacket pkt : packets)
+		{
+			size += pkt.data.length;
+		}
+		
+		// Add the header if we have one.
+		if(header != null)
+			size += header.length;
+		
+		// Build the rawData array.
+		rawData = new byte[size];
+		
+		int cursor = 0;
+		
+		// Copy the header
+		if(header != null)
+		{
+			System.arraycopy(header, 0, rawData, cursor, header.length);
+			cursor += header.length;
+		}
+		
+		// Copy each of the packets.
+		for(DemuxPacket pkt : packets)
+		{
+			System.arraycopy(pkt.data, 0, rawData, cursor, pkt.data.length);
+			cursor += pkt.data.length;
+		}
+		
+		this.packet_count = packets.size();
 	}
 	
 	public byte[] getData()
 	{
-		// TODO copy the data from the byte buffer to a new array for completeness.
-		if(rawData == null)
-			throw new RuntimeException("Data is not available - fix me!");
-		
 		return rawData;
 	}
 	
 	public long getSize()
 	{
-		if(pktssize ==  -1)
-		{
-			if(rawData != null)
-				return rawData.length;
-			else
-				return 0;
-		}
-		else
-			if(header != null)
-				return pktssize + header.length;
-			else
-				return 0;
-	}
-	
-	public void givePacketsSizeHint(long pktssize)
-	{
-		this.pktssize = pktssize;
+		return rawData.length;
 	}
 	
 	@Override
 	public void write(DataOutput out) throws IOException {
-		out.writeLong(getSize());
-		if(header != null)
-			out.write(header);
-		if(data != null)
-		{
-			Printer.println("Outputing data chunk: " + this.toString());
-			for(DemuxPacket pkt : data)
-			{	
-				if(pkt.data == null){}
-					//System.err.println("Null data in DemuxPacket (" + pkt.toString() + ")");
-				else
-				{
-					byte[] dst = new byte[pkt.data.limit()];
-					pkt.data.get(dst); // This is the copy across to java.
-					out.write(dst); // This is write to the FS.
-				}
-			}
-		}
+		out.writeInt(packet_count);
+		out.writeInt(rawData.length);
+		out.write(rawData);
 	}
 
 	@Override
 	public void readFields(DataInput in) throws IOException {
-		long size = in.readLong();
-		rawData = new byte[(int) size];
-		in.readFully(rawData); // Internally this data is all delimited anyway.
-	}
-
-	// Alloc/dealloc management.
-	public void retain(ChunkID chunkID)
-	{
-		synchronized (chunkIDs) {
-			if(!dying.get())
-				chunkIDs.add(chunkID);
-			else
-				throw new RuntimeException("This ChunkData has already been deallocated.");
-		}
+		this.packet_count = in.readInt();
+		int size = in.readInt();
+		rawData = new byte[size];
+		in.readFully(rawData); // Internally this data is all delimited using TPL anyway.
 	}
 	
-	public void dealloc(ChunkID chunkID) {
-		synchronized (chunkIDs) {
-			chunkIDs.remove(chunkID);
-			
-			if(chunkIDs.isEmpty()){
-				dying.set(true);
-				
-				if(data != null){
-					for(DemuxPacket pkt : data)
-					{	
-						pkt.deallocData();
-					}
-				}
-			}
-		}
-	}
-
 	@Override
 	public String toString() {
 		final int maxLen = 10;
 		return "ChunkData ["
 				+ "\n\t\thashCode=" + super.hashCode()
 				+ "\n\t\tsize=" + FileUtils.humanReadableByteCount(this.getSize(), false)
-				+ (header != null ? "\n\t\theader="
-						+ Arrays.toString(Arrays.copyOf(header,
-								Math.min(header.length, maxLen))) + "..., "
-						: "")
-				+ (data != null ? "\n\t\tdata=" + toString(data, 2) + "..., "
-						: "")
 				+ (rawData != null ? "\n\t\trawData="
 						+ Arrays.toString(Arrays.copyOf(rawData,
 								Math.min(rawData.length, maxLen))) + "..." : "")
 				+ "\n]";
 	}
 
-	private String toString(Collection<?> collection, int maxLen) {
-		StringBuilder builder = new StringBuilder();
-		builder.append("[");
-		int i = 0;
-		for (Iterator<?> iterator = collection.iterator(); iterator
-				.hasNext() && i < maxLen; i++) {
-			if (i > 0)
-				builder.append(", ");
-			builder.append(iterator.next());
-		}
-		builder.append("]");
-		return builder.toString();
-	}
 }

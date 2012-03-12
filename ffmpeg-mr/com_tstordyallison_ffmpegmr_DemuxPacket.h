@@ -7,14 +7,6 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-/*
- * Class:     com_tstordyallison_ffmpegmr_DemuxPacket
- * Method:    deallocData
- * Signature: ()I
- */
-JNIEXPORT jint JNICALL Java_com_tstordyallison_ffmpegmr_DemuxPacket_deallocData
-  (JNIEnv *, jobject);
-
 #ifdef __cplusplus
 }
 #endif

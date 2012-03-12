@@ -10,55 +10,41 @@ import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 
 import com.tstordyallison.ffmpegmr.Chunker;
-import com.tstordyallison.ffmpegmr.DemuxPacket;
-import com.tstordyallison.ffmpegmr.Demuxer;
+import com.tstordyallison.ffmpegmr.WriterThread;
 import com.tstordyallison.ffmpegmr.util.FileUtils;
 import com.tstordyallison.ffmpegmr.util.Printer;
 import com.tstordyallison.ffmpegmr.util.Stopwatch;
 
 public class ChunkTest {
 
-	/**
-	 * @param args
-	 * @throws IOException 
-	 * @throws InterruptedException 
-	 */
 	public static void main(String[] args) throws IOException, InterruptedException {
+		Thread.setDefaultUncaughtExceptionHandler(new ThreadCatcher()); 
 		
-		Chunker.CHUNK_Q_LIMIT = 10;
-		Chunker.CHUNK_SIZE_FACTOR = 0.5; 
 		Printer.ENABLED = true;
-		
-		// Test code:
-		//long avg = 0;
-		//int loopcount = 5;
-		//for(int i = 1; i <= loopcount; i++)
-		//{
-			//System.out.println("\n-------------\nTest run " + i + ":\n-------------");
-			//avg += chunkWithTimer("/Users/tom/Code/fyp/example-videos/Test.mkv", "file:///Users/tom/Code/fyp/example-videos/Test.mkv.seq");
-			//avg += chunkWithTimer("/Volumes/FFmpegTest/Test.mp4", "file:///Volumes/FFmpegTest/Test.mp4.seq");
-			//avg += chunkWithTimer("/Users/tom/Code/fyp/example-videos/Test.avi", "file:///Users/tom/Code/fyp/example-videos/Test.avi.seq");
-		//}
-		//System.out.printf("\n-----\nThroughput avg overall for " + FileUtils.humanReadableByteCount((long)((double)avg/(loopcount)), false) + "/s\n-----\n\n");
-		
-		// -----
-		// Local conversion tests.
-		// -----
-		//chunkWithTimer("/Users/tom/Code/fyp/example-videos/Test.mp4", "file:///Users/tom/Code/fyp/example-videos/Test.mp4.seq");
-		//chunkWithTimer("/Users/tom/Code/fyp/example-videos/Test.mkv", "file:///Users/tom/Code/fyp/example-videos/Test.mkv.seq");
-		//chunkWithTimer("/Users/tom/Code/fyp/example-videos/Test.wmv", "file:///Users/tom/Code/fyp/example-videos/Test.wmv.seq");
-		chunkWithTimer("/Users/tom/Code/fyp/example-videos/Test.avi", "file:///Users/tom/Code/fyp/example-videos/Test.avi.seq");
-		//System.gc();
-		
-		// -----
-		// S3 Upload tests.
-		// -----
-		//chunkWithTimer("/Users/tom/Code/fyp/example-videos/Test.mp4", "Test.mp4.seq");
-		//chunkWithTimer("/Users/tom/Code/fyp/example-videos/Test.avi", "Test.avi.seq");
-		//chunkWithTimer("/Volumes/Movies and TV/TV Shows/Stargate SG1/Season 1/Stargate.SG1-s01e13.The.Nox.m4v", "Stargate.SG1-s01e13.The.Nox.m4v.seq");
-		//listFiles("/");
+		WriterThread.FILE_PER_CHUNK = false;
+
+		if(args.length == 2)
+		{
+			if(!args[1].startsWith("file://")){
+				args[1] = "file://" + new File(args[1]).getAbsolutePath();
+			}
+			
+			chunkWithTimer(args[0], args[1]);
+		}
+		else
+		{
+			//chunkWithTimer("/Users/tom/Code/fyp/example-videos/Test.mp4", "file:///Users/tom/Code/fyp/example-videos/Test.mp4.seq");
+			//chunkWithTimer("/Users/tom/Code/fyp/example-videos/Test.m4v", "file:///Users/tom/Code/fyp/example-videos/Test.m4v.seq");
+			//chunkWithTimer("/Users/tom/Code/fyp/example-videos/Test.mkv", "file:///Users/tom/Code/fyp/example-videos/Test.mkv.seq");
+			//chunkWithTimer("/Users/tom/Code/fyp/example-videos/Test.wmv", "file:///Users/tom/Code/fyp/example-videos/Test.wmv.seq");
+			chunkWithTimer("/Users/tom/Code/fyp/example-videos/Test.avi", "file:///Users/tom/Code/fyp/example-videos/Test.avi.seq");
+		}
 	}
 	
+	public static long chunkWithTimer(File path, File localpath) throws IOException, InterruptedException
+	{
+		 return chunkWithTimer(path, "file://" + localpath.getAbsolutePath());
+	}
 	public static long chunkWithTimer(String path, String hadoopUri) throws IOException, InterruptedException
 	{
 		 return chunkWithTimer(new File(path), hadoopUri);
@@ -109,13 +95,5 @@ public class ChunkTest {
 	public static String fileStatusToString(FileStatus fileStatus)
 	{
 		return fileStatus.getPath() + ", " + fileStatus.getLen();
-	}
-	public static void isolationTest(String filename)
-	{
-		Demuxer demuxer = new Demuxer(filename);
-		DemuxPacket pkt;
-		while((pkt = demuxer.getNextChunk()) != null)
-			pkt.deallocData();
-		demuxer.close();
 	}
 }

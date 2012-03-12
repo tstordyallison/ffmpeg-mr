@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<project default="hadoop_build" name="ffmpeg-mr Hadoop Jar">
+	<property name="project.output.zip" location="/Users/tom/Dropbox/Public/ffmpeg-mr.zip"/>
+	
+    <target name="hadoop_build">
+        <jar destfile="ffmpegmr.jar" filesetmanifest="mergewithoutmain">
+            <manifest>
+                <attribute name="Main-Class" value="com.tstordyallison.ffmpegmr.hadoop.TranscodeJob"/>
+                <attribute name="Class-Path" value="."/>
+            </manifest>
+            <fileset dir="/Users/tom/Code/fyp/ffmpeg-mr/ffmpeg-mr" excludes="*.jnilib, lib/*, examples/*, ffmpegmr.jar"/>
+            <zipfileset excludes="META-INF/*.SF" src="/Users/tom/Code/fyp/joda-time-2.0/joda-time-2.0.jar"/>
+        </jar>
+    </target>
+	
+	<target name="testing_build">
+		<zip destfile="${project.output.zip}">
+			  <zipfileset dir="/Users/tom/Code/fyp/ffmpeg-mr/ffmpeg-mr" excludes="*.jnilib, lib/*, ffmpegmr.jar"/>
+			  <zipfileset excludes="META-INF/*" src="lib/joda-time-2.0.jar"/>
+			  <zipfileset excludes="META-INF/*" src="lib/mrunit-0.8.0-incubating.jar"/>
+		</zip>          
+	</target>
+	
+</project>

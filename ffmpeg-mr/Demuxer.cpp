@@ -8,7 +8,6 @@ using namespace std;
 
 extern "C" {
     #include "ffmpeg_tpl.h"
-
     #include "libavcodec/avcodec.h"
     #include "libavutil/mathematics.h"
     #include "libavutil/imgutils.h"
@@ -74,7 +73,7 @@ public:
             
             // Close the format context (TODO: think about what to do here if we are stream).
             if(state->fmt_ctx != NULL)
-                av_close_input_file(state->fmt_ctx);
+                avformat_close_input(&state->fmt_ctx);
             
             // Remove the state from the map.
             int hashCode = getHashCode(env, obj);
@@ -107,7 +106,6 @@ JNIEXPORT jint JNICALL Java_com_tstordyallison_ffmpegmr_Demuxer_initDemuxWithFil
     // Init state and add them to the object register.
     DemuxState *state = new DemuxState; 
     *state = DEMUXSTATE_DEFAULT;
-    tracker.registerObjectState(env, obj, state);
     
     // Opens the file, reads the streams, generates stream TPL, prepares for read calls.
     // ---------
@@ -160,6 +158,8 @@ JNIEXPORT jint JNICALL Java_com_tstordyallison_ffmpegmr_Demuxer_initDemuxWithFil
         err = -1;
         goto failure;
     }
+    
+   
     state->dpkt_ctr = env->GetMethodID(state->dpkt_clazz, "<init>", "()V");
     
 failure:
@@ -167,12 +167,16 @@ failure:
     if(filename_copy == JNI_TRUE)
         env->ReleaseStringUTFChars(jfilename, filename);
     
-    if(err != 0){
-        tracker.unregisterObjectState(env, obj);
+    // Either error, or return and register.
+    if(err != 0)
+    {
         return err;
-    }else
+    }
+    else
+    {
+        tracker.registerObjectState(env, obj, state);
         return 0;
-
+    }
 }
 
 typedef struct StreamRead {
@@ -255,31 +259,6 @@ JNIEXPORT jint JNICALL Java_com_tstordyallison_ffmpegmr_Demuxer_getStreamCount
 
 
 /*
- * Calculates the timestamp value that we use when we are synchronising the streams. 
- *
- * **** This is a hack for now - we just represent everything in MICROSECONDS (1/1,000,000 of a second). ****
- * **** We really need to pass over the timebase, and do the comparisons properly. But if we can get away with this... ****
- *
- * Used mainly for chunking the data up accurately, and merging it back together in the reduce.
- */
-static long getPacketTimeStamp(AVStream *stream, AVPacket pkt){
-    AVRational ts_base = {1, 1000000};
-    return av_rescale_q(pkt.dts, stream->time_base, ts_base);
-}
-
-/*
- * Calculates the duration of the packet based in microseconds.
- *
- * Used mainly for chunking the data up accurately, and merging it back together in the reduce.
- */
-static long getPacketDuration(AVStream *stream, AVPacket pkt){
-    AVRational ts_base = {1, 1000000};
-    return av_rescale_q(pkt.duration, stream->time_base, ts_base);
-}
-
-
-
-/*
  * Class:     com_tstordyallison_ffmpegmr_Demuxer
  * Method:    getNextChunk
  * Signature: ()Lcom/tstordyallison/ffmpegmr/Demuxer/DemuxPacket;
@@ -306,9 +285,18 @@ JNIEXPORT jobject JNICALL Java_com_tstordyallison_ffmpegmr_Demuxer_getNextChunkI
         uint8_t *pkt_tpl_data;
         int pkt_tpl_size;                               
         
+        // Rescale the pts and dts values to our global timebase.
+//        if(state->pkt.pts != AV_NOPTS_VALUE)
+//            state->pkt.pts = av_rescale_q(state->pkt.pts, state->fmt_ctx->streams[state->pkt.stream_index]->time_base, TS_BASE);
+//        if(state->pkt.dts != AV_NOPTS_VALUE)
+//            state->pkt.dts = av_rescale_q(state->pkt.dts, state->fmt_ctx->streams[state->pkt.stream_index]->time_base, TS_BASE);
+//        if(state->pkt.duration != 0)
+//            state->pkt.duration = (int)av_rescale_q(state->pkt.duration, state->fmt_ctx->streams[state->pkt.stream_index]->time_base, TS_BASE);
+        
         // Generate the TPL.
         write_avpacket_chunk_to_memory(&state->pkt, &pkt_tpl_data, &pkt_tpl_size);
-        av_free_packet(&state->pkt);
+        av_free(state->pkt.data);       state->pkt.data = NULL;
+        av_free(state->pkt.side_data);  state->pkt.side_data = NULL;
                                        
         // Create the DemuxPacket object.
         jclass      dpkt_clazz = env->FindClass("com/tstordyallison/ffmpegmr/DemuxPacket");
@@ -320,21 +308,26 @@ JNIEXPORT jobject JNICALL Java_com_tstordyallison_ffmpegmr_Demuxer_getNextChunkI
         jfieldID ts = env->GetFieldID(dpkt_clazz, "ts", "J");
         jfieldID duration = env->GetFieldID(dpkt_clazz, "duration", "J");
         jfieldID splitPoint = env->GetFieldID(dpkt_clazz, "splitPoint", "Z");
-        jfieldID data = env->GetFieldID(dpkt_clazz, "data", "Ljava/nio/ByteBuffer;");
-        
+        jfieldID data = env->GetFieldID(dpkt_clazz, "data", "[B");
+
         env->SetIntField(dpkt, streamID, state->pkt.stream_index);
-        env->SetLongField(dpkt, duration, getPacketDuration(state->fmt_ctx->streams[state->pkt.stream_index], state->pkt));
-        env->SetLongField(dpkt, ts, getPacketTimeStamp(state->fmt_ctx->streams[state->pkt.stream_index], state->pkt));
+       
+        if(state->pkt.dts != AV_NOPTS_VALUE)
+            env->SetLongField(dpkt, ts, av_rescale_q(state->pkt.dts, state->fmt_ctx->streams[state->pkt.stream_index]->time_base, TS_BASE));
+        if(state->pkt.duration != 0)
+            env->SetLongField(dpkt, duration, (int)av_rescale_q(state->pkt.duration, state->fmt_ctx->streams[state->pkt.stream_index]->time_base, TS_BASE));
         
         if(state->pkt.flags & AV_PKT_FLAG_KEY)
             env->SetBooleanField(dpkt, splitPoint, JNI_TRUE);
         else
             env->SetBooleanField(dpkt, splitPoint, JNI_FALSE);
         
-        jobject buffer = env->NewDirectByteBuffer(pkt_tpl_data, (jlong)pkt_tpl_size);
-        env->SetObjectField(dpkt, data, buffer);
+        jbyteArray dataArray = env->NewByteArray(pkt_tpl_size);
+        env->SetByteArrayRegion(dataArray, 0, pkt_tpl_size, (jbyte *)pkt_tpl_data);
+        env->SetObjectField(dpkt, data, dataArray);
         
-        // The buffer will be released when DemuxPacket_deallocData is called below.
+        av_init_packet(&state->pkt);
+        free(pkt_tpl_data); pkt_tpl_data = NULL;
         
         // Done.
         return dpkt;
@@ -345,31 +338,6 @@ JNIEXPORT jobject JNICALL Java_com_tstordyallison_ffmpegmr_Demuxer_getNextChunkI
     }
 }
 
-
-/*
- * Class:     com_tstordyallison_ffmpegmr_Demuxer_DemuxPacket
- * Method:    deallocData
- * Signature: ()V
- */
-JNIEXPORT jint JNICALL Java_com_tstordyallison_ffmpegmr_DemuxPacket_deallocData
-(JNIEnv * env, jobject obj)
-{
-    
-    jclass      dpkt_clazz = env->FindClass("com/tstordyallison/ffmpegmr/DemuxPacket");
-    jfieldID    data =       env->GetFieldID(dpkt_clazz, "data", "Ljava/nio/ByteBuffer;");
-    jobject     buffer =     env->GetObjectField(obj, data);
-    if(buffer != NULL)
-    {
-        void *pkt_tpl_data = env->GetDirectBufferAddress(buffer);
-        free(pkt_tpl_data);
-        env->SetObjectField(obj, data, NULL); 
-        return 0;
-    }
-    else
-    {
-        return -1;
-    }
-}
 
 /*
  * Class:     com_tstordyallison_ffmpegmr_Demuxer
