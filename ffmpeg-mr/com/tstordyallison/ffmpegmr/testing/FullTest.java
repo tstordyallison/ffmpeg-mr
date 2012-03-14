@@ -5,6 +5,7 @@ import java.io.IOException;
 
 import com.tstordyallison.ffmpegmr.Chunker;
 import com.tstordyallison.ffmpegmr.util.Printer;
+import com.tstordyallison.ffmpegmr.util.ThreadCatcher;
 
 public class FullTest {
 

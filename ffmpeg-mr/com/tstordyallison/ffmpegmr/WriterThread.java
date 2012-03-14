@@ -16,8 +16,8 @@ import com.tstordyallison.ffmpegmr.util.Printer;
 public class WriterThread extends Thread{
 
 	public static boolean FILE_PER_CHUNK = false;
-	
 	public static int BLOCK_SIZE = 16777216;
+	public static boolean PRINT_WRITE = false;
 	
 	private BlockingQueue<Chunk> chunkQ;	
 	private String outputUri = "";
@@ -81,7 +81,8 @@ public class WriterThread extends Thread{
 				writer.append(chunk.getChunkID(), chunk.getChunkData());
 				if(FILE_PER_CHUNK)
 					writer.close();
-				Printer.println("Written: " + chunk.toString());
+				if(PRINT_WRITE)
+					Printer.println("Written: " + chunk.toString());
 			}
 			
 		} catch (InterruptedException e) {

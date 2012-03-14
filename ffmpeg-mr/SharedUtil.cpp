@@ -31,3 +31,24 @@ void throw_new_exception(JNIEnv *env, const char* msg){
     jclass err_clazz = env->FindClass("java/lang/RuntimeException");
     env->ThrowNew(err_clazz, msg);
 }
+
+int gcdf(int a, int b)
+{ 
+    if (b==0) return a;
+    return gcdf(b, a % b);
+} 
+
+static int lcmf2(int a, int b)
+{ 
+    return a * b / gcdf(a,b);
+} 
+
+int lcmf(int arr[], int size)
+{ 
+    if (size < 2) return arr[0];
+    if (size == 2) return lcmf2(arr[0], arr[1]);
+    int arr2[2];
+    arr2[0] = lcmf( arr, size / 2 );
+    arr2[1] = lcmf( arr + size / 2, size - (size / 2));
+    return lcmf(arr2, 2);
+} 

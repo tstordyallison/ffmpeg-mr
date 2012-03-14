@@ -10,10 +10,10 @@ extern "C" {
 /*
  * Class:     com_tstordyallison_ffmpegmr_Transcoder
  * Method:    initWithBytes
- * Signature: ([J[B)I
+ * Signature: (JJ[J[B)I
  */
 JNIEXPORT jint JNICALL Java_com_tstordyallison_ffmpegmr_Transcoder_initWithBytes
-  (JNIEnv *, jobject, jlongArray, jbyteArray);
+  (JNIEnv *, jobject, jlong, jlong, jlongArray, jbyteArray);
 
 /*
  * Class:     com_tstordyallison_ffmpegmr_Transcoder
@@ -21,6 +21,14 @@ JNIEXPORT jint JNICALL Java_com_tstordyallison_ffmpegmr_Transcoder_initWithBytes
  * Signature: ()Lcom/tstordyallison/ffmpegmr/DemuxPacket;
  */
 JNIEXPORT jobject JNICALL Java_com_tstordyallison_ffmpegmr_Transcoder_getNextPacket
+  (JNIEnv *, jobject);
+
+/*
+ * Class:     com_tstordyallison_ffmpegmr_Transcoder
+ * Method:    getStreamData
+ * Signature: ()[B
+ */
+JNIEXPORT jbyteArray JNICALL Java_com_tstordyallison_ffmpegmr_Transcoder_getStreamData
   (JNIEnv *, jobject);
 
 /*

@@ -20,6 +20,7 @@ import com.tstordyallison.ffmpegmr.ChunkID;
 import com.tstordyallison.ffmpegmr.WriterThread;
 import com.tstordyallison.ffmpegmr.hadoop.TranscodeMapper;
 import com.tstordyallison.ffmpegmr.util.Printer;
+import com.tstordyallison.ffmpegmr.util.ThreadCatcher;
 
 public class TransTest {
 
@@ -41,7 +42,7 @@ public class TransTest {
 		else
 		{
 			//runMapper("file:///Users/tom/Code/fyp/example-videos/Test.mp4.seq", "file:///Users/tom/Code/fyp/example-videos/Test.mp4.mapped.seq");
-			//runMapper("file:///Users/tom/Code/fyp/example-videos/Test.m4v.seq", "file:///Users/tom/Code/fyp/example-videos/Test.m4v.mapped.seq");
+			//runMapper("file:///Users/tom/Code/fyp/example-videos/TestChunked.m4v.seq.0.1", "file:///Users/tom/Code/fyp/example-videos/Test.m4v.mapped.seq");
 			//runMapper("file:///Users/tom/Code/fyp/example-videos/Test.mkv.seq", "file:///Users/tom/Code/fyp/example-videos/Test.mkv.mapped.seq");
 			//runMapper("file:///Users/tom/Code/fyp/example-videos/Test.wmv.seq", "file:///Users/tom/Code/fyp/example-videos/Test.wmv.mapped.seq");
 			runMapper("file:///Users/tom/Code/fyp/example-videos/Test.avi.seq", "file:///Users/tom/Code/fyp/example-videos/Test.avi.mapped.seq");

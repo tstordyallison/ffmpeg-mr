@@ -2,14 +2,14 @@ package com.tstordyallison.ffmpegmr.hadoop;
 
 import java.io.IOException;
 
+import org.apache.hadoop.io.BytesWritable;
 import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.mapreduce.Reducer;
 
 import com.tstordyallison.ffmpegmr.Chunk;
-import com.tstordyallison.ffmpegmr.ChunkData;
-import com.tstordyallison.ffmpegmr.ChunkID;
+import com.tstordyallison.ffmpegmr.Remuxer;
 
-public class RemuxReducer extends Reducer<LongWritable, Chunk, ChunkID, ChunkData> {
+public class RemuxReducer extends Reducer<LongWritable, Chunk, LongWritable, BytesWritable> {
 
 	/**
 	 * The reducer takes all of the 'Chunks' with the same timestamp (and because of our demux 
@@ -17,10 +17,12 @@ public class RemuxReducer extends Reducer<LongWritable, Chunk, ChunkID, ChunkDat
 	 * into a single chunk for output.
 	 * 
 	 * Its output will be a valid binary audio/video file, in the desired output container.
+	 * 
+	 * This is all done in native code through one static method.
 	 */
 	@Override
-	protected void reduce(LongWritable timestamp, Iterable<Chunk> values, Context context) throws IOException, InterruptedException {
-
+	protected void reduce(LongWritable timestamp, Iterable<Chunk> chunks, Context context) throws IOException, InterruptedException {
+		context.write(timestamp, new BytesWritable(Remuxer.muxChunks(chunks)));
 	}
 
 }

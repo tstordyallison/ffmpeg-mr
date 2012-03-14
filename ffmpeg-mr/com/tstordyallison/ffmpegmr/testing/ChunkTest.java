@@ -14,6 +14,7 @@ import com.tstordyallison.ffmpegmr.WriterThread;
 import com.tstordyallison.ffmpegmr.util.FileUtils;
 import com.tstordyallison.ffmpegmr.util.Printer;
 import com.tstordyallison.ffmpegmr.util.Stopwatch;
+import com.tstordyallison.ffmpegmr.util.ThreadCatcher;
 
 public class ChunkTest {
 
@@ -22,7 +23,9 @@ public class ChunkTest {
 		
 		Printer.ENABLED = true;
 		WriterThread.FILE_PER_CHUNK = false;
-
+		WriterThread.PRINT_WRITE = true;
+		WriterThread.BLOCK_SIZE *= 2; // 32Mb.
+		
 		if(args.length == 2)
 		{
 			if(!args[1].startsWith("file://")){
@@ -33,6 +36,7 @@ public class ChunkTest {
 		}
 		else
 		{
+			//chunkWithTimer("/Users/tom/Code/fyp/example-videos/TestLarge.m4v", "file:///Users/tom/Code/fyp/example-videos/TestLarge.m4v.seq");
 			//chunkWithTimer("/Users/tom/Code/fyp/example-videos/Test.mp4", "file:///Users/tom/Code/fyp/example-videos/Test.mp4.seq");
 			//chunkWithTimer("/Users/tom/Code/fyp/example-videos/Test.m4v", "file:///Users/tom/Code/fyp/example-videos/Test.m4v.seq");
 			//chunkWithTimer("/Users/tom/Code/fyp/example-videos/Test.mkv", "file:///Users/tom/Code/fyp/example-videos/Test.mkv.seq");

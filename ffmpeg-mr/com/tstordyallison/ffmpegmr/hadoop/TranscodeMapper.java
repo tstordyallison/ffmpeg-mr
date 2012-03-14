@@ -34,7 +34,7 @@ public class TranscodeMapper extends Mapper<ChunkID,ChunkData,LongWritable,Chunk
 		Stopwatch stopwatch = new Stopwatch();
 		stopwatch.start();
 		
-    	Transcoder trans = new  Transcoder(key.outputChunkPoints, value.getData());
+    	Transcoder trans = new  Transcoder(key.tbNum, key.tbDen, key.outputChunkPoints, value.getData());
     	List<DemuxPacket> currentPackets = new LinkedList<DemuxPacket>();
     	
     	context.setStatus(String.format("Chunk %d.%d: transcode operation starting... (pkts=%d)", key.streamID, key.chunkNumber, value.packet_count ));
@@ -82,7 +82,7 @@ public class TranscodeMapper extends Mapper<ChunkID,ChunkData,LongWritable,Chunk
 	{
 		if(currentPackets.size() > 0){
 			
-			// TODO: Spin this output stage off into a new thread as soon as possible.
+			// TODO: Spin this output stage off into a new thread as soon as possible?
 			
 			// Keeps the mapper alive.
 			if(context != null)
@@ -90,17 +90,22 @@ public class TranscodeMapper extends Mapper<ChunkID,ChunkData,LongWritable,Chunk
 			
 			// Build ChunkID
 			ChunkID chunkID = new ChunkID();
-			chunkID.chunkNumber = 1;
+			chunkID.chunkNumber = -1;
+			chunkID.streamID = currentPackets.get(0).streamID;
 			chunkID.startTS = currentPackets.get(0).ts;
 			chunkID.endTS = currentPackets.get(currentPackets.size()-1).ts + currentPackets.get(currentPackets.size()-1).duration;
 			chunkID.streamID = currentPackets.get(0).streamID;
+			chunkID.tbNum = currentPackets.get(0).tb_num;
+			chunkID.tbDen = currentPackets.get(0).tb_den;
 			
 			// Build value
 			ChunkData chunkData = new ChunkData(currentPackets);
 			
 			// Output value
 			try {
-				context.write(new LongWritable(chunkID.startTS), new Chunk(chunkID, chunkData));
+				Chunk chunk = new Chunk(chunkID, chunkData);
+				context.write(new LongWritable(chunkID.startTS), chunk);
+				Printer.println("Map output: " + chunk.toString());
 			} catch (IOException e) {
 				System.err.println("IO Error writing to map output.");
 				e.printStackTrace();
@@ -108,6 +113,9 @@ public class TranscodeMapper extends Mapper<ChunkID,ChunkData,LongWritable,Chunk
 				System.err.println("Map output thread cancelled.");
 				e.printStackTrace();
 			}
+			
+			// Clear this buffer.
+			currentPackets.clear();
 		
 		}
 	}

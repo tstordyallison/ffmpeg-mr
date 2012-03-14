@@ -8,13 +8,18 @@ import java.util.List;
 import java.util.ListIterator;
 import java.util.concurrent.BlockingQueue;
 
+import com.tstordyallison.ffmpegmr.util.FileUtils;
 import com.tstordyallison.ffmpegmr.util.Printer;
 
 public class ChunkerThread extends Thread {
 	
 	public class ChunkBuffers {
 		
+		private long 					endTS						= 0;
+		private long 					endTSNum					= 0;
+		private long 					endTSDen					= 0;
 		private long 					packetCount					= 0;
+		
 		private List<ByteBuffer> 		streamHeaders 				= new ArrayList<ByteBuffer>(demuxer.getStreamCount()); 		
 		private List<List<DemuxPacket>> currentChunks				= new ArrayList<List<DemuxPacket>>(demuxer.getStreamCount()); 
 		private List<Integer> 			currentChunksSizes 			= new ArrayList<Integer>(demuxer.getStreamCount()); 			
@@ -45,8 +50,7 @@ public class ChunkerThread extends Thread {
 		}
 
 		public long getBufferSize(int streamID) {
-			return streamHeaders.get(streamID).limit() + 
-			   currentChunksSizes.get(streamID);
+			return streamHeaders.get(streamID).limit() + currentChunksSizes.get(streamID);
 		}
 
 		public Chunk drainChunk(int streamID) {
@@ -56,23 +60,32 @@ public class ChunkerThread extends Thread {
 			if(chunkBuffer.size() <= 0)
 				return null;
 			
-			// Get the header.
-			ByteBuffer header = streamHeaders.get(streamID);
-			
-			// Check the end markers, TODO: add logic for end markers that are in the middle of GOPs.
+			// Check the end markers.
+			// TODO: add logic for end markers that are in the middle of GOPs.
 			int endMarker = endMarkers.get(streamID); // This is exclusive of the end marker, e.g. the end marker is the start of the next chunk.
-			if(endMarker == 0) // Only one frame!
-				throw new RuntimeException("We can't drain just yet!");
-			else if(endMarker > chunkBuffer.size()-1) 
-				endMarker = chunkBuffer.size(); // Too far, we'll just take them all.
-				
+			
+			if(endMarker == -1) // No where to split yet!
+				return null;
+			else if(endMarker == 0) // Only one frame!
+				return null;
+			else if(endMarker > chunkBuffer.size()-1) // Too far, we'll just take them all.
+				endMarker = chunkBuffer.size(); 
+			
 			// Build a new chunk ID.
 			ChunkID chunkID = new ChunkID();
 			chunkID.chunkNumber = currentChunkIDCounters.get(streamID);
 			chunkID.streamID = streamID;
 			chunkID.startTS = chunkBuffer.get(0).ts;
+			chunkID.tbDen =  chunkBuffer.get(0).tb_den;
+			chunkID.tbNum =  chunkBuffer.get(0).tb_num;
 			DemuxPacket lastPacket = chunkBuffer.get(endMarker-1);
 			chunkID.endTS = lastPacket.ts + lastPacket.duration;
+			
+			if(endTS < chunkID.endTS){
+				endTS = chunkID.endTS;
+				endTSNum = chunkID.tbNum;
+				endTSDen = chunkID.tbDen;
+			}
 			
 			// Find all of the output chunk points that apply to this chunk.
 			for(Long point : chunkPoints)
@@ -82,6 +95,7 @@ public class ChunkerThread extends Thread {
 			}
 			
 			// Build the chunk data.
+			ByteBuffer header = streamHeaders.get(streamID);
 			ChunkData chunkData = new ChunkData(header.array(), new LinkedList<DemuxPacket>(chunkBuffer.subList(0, endMarker)));
 			
 			// Calculate what is left, dealloc the demux packets, and remove them from the buffer.
@@ -108,11 +122,6 @@ public class ChunkerThread extends Thread {
 
 		public void setMaxEndMarker(int streamID){
 			endMarkers.set(streamID, Integer.MAX_VALUE);
-		}
-		
-		public long getPacketCount()
-		{
-			return packetCount;
 		}
 		
 		@Override
@@ -193,7 +202,12 @@ public class ChunkerThread extends Thread {
 				if(chunkBuffers.getBufferSize(currentPacket.streamID) > blockSize)
 				{
 					Chunk chunk = chunkBuffers.drainChunk(currentPacket.streamID);
-					chunkQ.put(chunk); // This will block until the queue has space.
+					
+					// If this is null, we couldnt drain a valid chunk, so we have to carry on instead.
+					if(chunk != null)
+						chunkQ.put(chunk); // This will block until the queue has space.
+					else
+						Printer.println("WARNING: Demuxer unable to drain chunk smaller than "  + FileUtils.humanReadableByteCount(blockSize, false) + ". Try a larger chunk size.");
 				}
 				
 				// Get the next packet.
@@ -220,16 +234,26 @@ public class ChunkerThread extends Thread {
 			e.printStackTrace();
 		}
 		finally {
-			if(demuxer != null)
-				demuxer.close();
-			Printer.println("Demuxing complete. Thread ending.");
+		if(demuxer != null)
+			demuxer.close();
 		}
-		
+		Printer.println("Demuxing complete. Thread ending.");
 	}
 
-	
 	public long getPacketCount() {
-		return chunkBuffers.getPacketCount();
+		return chunkBuffers.packetCount;
+	}
+	
+	public long getEndTS() {
+		return chunkBuffers.endTS;
+	}
+	
+	public long getEndTSDen() {
+		return chunkBuffers.endTSDen;
+	}
+	
+	public long getEndTSNum() {
+		return chunkBuffers.endTSNum;
 	}
 	
 }

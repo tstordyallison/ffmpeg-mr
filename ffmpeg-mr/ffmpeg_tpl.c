@@ -188,29 +188,9 @@ int write_avstream_chunk_to_memory(AVStream *stream, uint8_t **unallocd_buffer, 
     data.sz = stream->codec->extradata_size; 
     data.addr = stream->codec->extradata;
     
-    
-    AVRational stream_tb = stream->time_base;
-    
-    if(stream->codec->codec_type == AVMEDIA_TYPE_VIDEO)
-    {
-        
-//        fprintf(stderr, "ms per frame: %5.2f\n", 1000 * stream->codec->ticks_per_frame * AV_TIME_BASE * av_q2d(stream->codec->time_base));
-//    
-//        if (stream->codec->time_base.den != stream->r_frame_rate.num * stream->codec->ticks_per_frame 
-//            || stream->codec->time_base.num != stream->r_frame_rate.den) {
-//            
-//            fprintf(stderr,"\nSeems stream %d codec frame rate differs from container frame rate: %2.2f (%d/%d) -> %2.2f (%d/%d)\n", stream->stream_identifier,
-//                    (float)stream->codec->time_base.den / stream->codec->time_base.num, stream->codec->time_base.den, stream->codec->time_base.num,
-//                    (float)stream->r_frame_rate.num / stream->r_frame_rate.den, stream->r_frame_rate.num, stream->r_frame_rate.den);
-//            fprintf(stderr,"Using container format instead for TPL stream header, this might go wrong!\n");
-//            
-//            stream_tb = stream->r_frame_rate;
-//        }
-    }
-    
     tn = tpl_map(AVSTREAM_TPL_FORMAT,
-                 &(stream_tb.num),
-                 &(stream_tb.den),
+                 &(stream->time_base.num),
+                 &(stream->time_base.den),
                  &(stream->r_frame_rate.num),
                  &(stream->r_frame_rate.den),
                  &(stream->sample_aspect_ratio.num),
@@ -244,7 +224,7 @@ int write_avstream_chunk_to_memory(AVStream *stream, uint8_t **unallocd_buffer, 
     
     if(DEBUG_PRINT) {
         fprintf(stderr, "Saved chunk with CTB: %d/%d (1/=%2.2f)\n", stream->codec->time_base.num, stream->codec->time_base.den, (float)stream->codec->time_base.den/stream->codec->time_base.num);
-        fprintf(stderr, "Saved chunk with STB: %d/%d (1/=%2.2f)\n", stream_tb.num, stream_tb.den, (float)stream_tb.den/stream_tb.num);
+        fprintf(stderr, "Saved chunk with STB: %d/%d (1/=%2.2f)\n", stream->time_base.num, stream->time_base.den, (float)stream->time_base.den/stream->time_base.num);
     }
 
     return ret;
@@ -276,6 +256,7 @@ int write_avstream_chunk_to_fd(AVStream *stream, int fd){
 
 int read_avpacket_chunk_from_memory(uint8_t *buf, size_t buf_size, AVPacket *pkt){
     
+
     tpl_node *tn;
     tpl_bin data;
     int ret;
@@ -292,6 +273,8 @@ int read_avpacket_chunk_from_memory(uint8_t *buf, size_t buf_size, AVPacket *pkt
     ret = tpl_load(tn, TPL_MEM|TPL_EXCESS_OK, buf, buf_size);
     if(ret < 0)
         return ret;
+    
+    av_init_packet(pkt);
     
     tpl_unpack(tn,0);
     

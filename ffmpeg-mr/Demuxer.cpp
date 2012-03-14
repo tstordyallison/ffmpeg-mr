@@ -1,8 +1,9 @@
 #include <jni.h>
 #include "com_tstordyallison_ffmpegmr_Demuxer.h"
-#include "com_tstordyallison_ffmpegmr_DemuxPacket.h"
 #include "SharedUtil.h"
 #include <map>
+#include <algorithm>
+#include <cstdlib>
 
 using namespace std;
 
@@ -13,7 +14,6 @@ extern "C" {
     #include "libavutil/imgutils.h"
     #include "libavutil/dict.h"
     #include "libavformat/avformat.h"
-    #include "libavutil/mathematics.h"
 }
 
 
@@ -24,7 +24,9 @@ struct DemuxState {
     uint8_t **stream_data;
     int     *stream_data_sizes;
     jclass  dpkt_clazz;
-    jmethodID dpkt_ctr;    
+    jmethodID dpkt_ctr;
+    AVRational *common_tb;
+    int tb_lcm;
 };
 const struct DemuxState DEMUXSTATE_DEFAULT = {NULL, NULL, -1, NULL, NULL, NULL, NULL};
 
@@ -87,6 +89,7 @@ public:
 
 static DemuxTracker tracker;
 
+
 // JNI Methods.
 // --------
 
@@ -114,38 +117,102 @@ JNIEXPORT jint JNICALL Java_com_tstordyallison_ffmpegmr_Demuxer_initDemuxWithFil
     filename = env->GetStringUTFChars(jfilename, (jboolean *)&filename_copy);
     if ((err = avformat_open_input(&state->fmt_ctx, filename, NULL, NULL)) < 0) {
         print_file_error(filename, err);
-        goto failure;
+        return -1;
     }
     
     // Fill the streams in the format context
     if ((err = avformat_find_stream_info(state->fmt_ctx, NULL)) < 0) {
         printf("Failed to open streams in file %s, error %d\n", filename, err);
-        goto failure;
+        return -1;
     }
     
     // Bind a decoder to each input stream, and generate the TPL stream headers.
     state->stream_count      = state->fmt_ctx->nb_streams;
     state->stream_data       = new uint8_t*[state->stream_count]; // list of lists
     state->stream_data_sizes = new int[state->stream_count];
+    state->common_tb         = new AVRational[state->stream_count];
     
     for (i = 0; i < state->fmt_ctx->nb_streams; i++) {
         AVStream *stream = state->fmt_ctx->streams[i];
         AVCodec *codec;
         
         if (!(codec = avcodec_find_decoder(stream->codec->codec_id))) {
-            //fprintf(stderr, "Warning: Unsupported codec with id %d for input stream %d\n", stream->codec->codec_id, stream->index);
+            fprintf(stderr, "Warning: Unsupported codec with id %d for input stream %d\n", stream->codec->codec_id, stream->index);
             state->stream_data[stream->index] = NULL;
             state->stream_data_sizes[stream->index] = 0;
+            state->common_tb[i].num = -1;
+            state->common_tb[i].den = -1;
             continue;
         } else if (avcodec_open2(stream->codec, codec, NULL) < 0) {
             fprintf(stderr, "Error while opening codec for input stream %d\n", stream->index);
             err = -1;
-            goto failure;
+            return -1;
         }
         
         // Generate the TPL stream headers.
-        err = write_avstream_chunk_to_memory(stream, &((state->stream_data)[i]), &((state->stream_data_sizes)[i])); // I will be amazed if this works.
+        err = write_avstream_chunk_to_memory(stream, &((state->stream_data)[i]), &((state->stream_data_sizes)[i]));
+        
+        // Add to the common output timebase.
+        if(codec->type == AVMEDIA_TYPE_VIDEO){
+            fprintf(stderr, "Packet  (%d) tb: %d/%d (1/=%2.2f)\n", i, stream->time_base.num, stream->time_base.den, (float)stream->time_base.den/stream->time_base.num);
+            state->common_tb[i] = stream->time_base;
+        }
+        if(codec->type == AVMEDIA_TYPE_AUDIO){
+            fprintf(stderr, "Packet  (%d) tb: %d/%d (1/=%2.2f)\n", i, stream->codec->time_base.num, stream->codec->time_base.den, (float)stream->codec->time_base.den/stream->codec->time_base.num);
+            state->common_tb[i] = stream->codec->time_base;
+        }
     }
+    
+    
+    // Use the least common multiple algorithm to adjust the timebases to have the same denominator.
+    int *denoms = NULL;
+    int denoms_size = 0;
+
+    for (i = 0; i < state->stream_count; i++){
+        if(state->common_tb[i].den > 0){
+            // Check to see if this value is already there.
+            int contains = 0;
+            for (int j = 0; j < denoms_size; j++){
+                if(denoms[j] == state->common_tb[i].den)
+                {
+                    contains = 1;
+                    break;
+                }
+            }
+            
+            if(!contains) {
+                denoms_size += 1;
+                denoms = (int *)realloc(denoms, sizeof(int) * denoms_size);
+                denoms[i] = state->common_tb[i].den;
+            }
+        }
+    }
+    
+    int lcm = state->tb_lcm = lcmf(denoms, denoms_size);
+    
+    // Set the new den and num for each of the tbs.
+    for (i = 0; i < state->stream_count; i++){
+        if(state->common_tb[i].den > 0)
+        {
+            if(lcm > state->common_tb[i].den) {
+                int mul = lcm / state->common_tb[i].den;
+                state->common_tb[i].num *= mul;
+                state->common_tb[i].den = lcm;
+            }
+            else if(lcm < state->common_tb[i].den)
+            {
+                // Can this ever happen? 
+                fprintf(stderr, "LCM calc cockup.\n");
+            }
+            
+            if(DEBUG)
+                fprintf(stderr, "Output tb (%d): %d/%d (1/=%2.2f)\n", i, state->common_tb[i].num, state->common_tb[i].den, (float)state->common_tb[i].den/state->common_tb[i].num);
+        
+        }
+       
+    }
+    
+    free(denoms);
     
     // Init the packet storage.
     av_init_packet(&state->pkt);
@@ -158,8 +225,7 @@ JNIEXPORT jint JNICALL Java_com_tstordyallison_ffmpegmr_Demuxer_initDemuxWithFil
         err = -1;
         goto failure;
     }
-    
-   
+
     state->dpkt_ctr = env->GetMethodID(state->dpkt_clazz, "<init>", "()V");
     
 failure:
@@ -285,14 +351,6 @@ JNIEXPORT jobject JNICALL Java_com_tstordyallison_ffmpegmr_Demuxer_getNextChunkI
         uint8_t *pkt_tpl_data;
         int pkt_tpl_size;                               
         
-        // Rescale the pts and dts values to our global timebase.
-//        if(state->pkt.pts != AV_NOPTS_VALUE)
-//            state->pkt.pts = av_rescale_q(state->pkt.pts, state->fmt_ctx->streams[state->pkt.stream_index]->time_base, TS_BASE);
-//        if(state->pkt.dts != AV_NOPTS_VALUE)
-//            state->pkt.dts = av_rescale_q(state->pkt.dts, state->fmt_ctx->streams[state->pkt.stream_index]->time_base, TS_BASE);
-//        if(state->pkt.duration != 0)
-//            state->pkt.duration = (int)av_rescale_q(state->pkt.duration, state->fmt_ctx->streams[state->pkt.stream_index]->time_base, TS_BASE);
-        
         // Generate the TPL.
         write_avpacket_chunk_to_memory(&state->pkt, &pkt_tpl_data, &pkt_tpl_size);
         av_free(state->pkt.data);       state->pkt.data = NULL;
@@ -306,16 +364,25 @@ JNIEXPORT jobject JNICALL Java_com_tstordyallison_ffmpegmr_Demuxer_getNextChunkI
         // Copy the TPL version to the dpkt (and fill in the other dpkt values).
         jfieldID streamID = env->GetFieldID(dpkt_clazz, "streamID", "I");
         jfieldID ts = env->GetFieldID(dpkt_clazz, "ts", "J");
+        jfieldID tb_num = env->GetFieldID(dpkt_clazz, "tb_num", "J");
+        jfieldID tb_den = env->GetFieldID(dpkt_clazz, "tb_den", "J");
         jfieldID duration = env->GetFieldID(dpkt_clazz, "duration", "J");
         jfieldID splitPoint = env->GetFieldID(dpkt_clazz, "splitPoint", "Z");
         jfieldID data = env->GetFieldID(dpkt_clazz, "data", "[B");
 
         env->SetIntField(dpkt, streamID, state->pkt.stream_index);
-       
-        if(state->pkt.dts != AV_NOPTS_VALUE)
-            env->SetLongField(dpkt, ts, av_rescale_q(state->pkt.dts, state->fmt_ctx->streams[state->pkt.stream_index]->time_base, TS_BASE));
+        env->SetLongField(dpkt, tb_num, 1);
+        env->SetLongField(dpkt, tb_den, state->tb_lcm);
+        
+        if(state->pkt.pts != AV_NOPTS_VALUE)
+            env->SetLongField(dpkt, ts, av_rescale_q(state->pkt.pts, state->fmt_ctx->streams[state->pkt.stream_index]->time_base, (AVRational){1, state->tb_lcm}));
+        else if(state->pkt.dts != AV_NOPTS_VALUE){
+            // TODO: Sort out a properly delay here to synthesise the PTS.
+            env->SetLongField(dpkt, ts, av_rescale_q(state->pkt.dts, state->fmt_ctx->streams[state->pkt.stream_index]->time_base, (AVRational){1, state->tb_lcm}));
+        }
+        
         if(state->pkt.duration != 0)
-            env->SetLongField(dpkt, duration, (int)av_rescale_q(state->pkt.duration, state->fmt_ctx->streams[state->pkt.stream_index]->time_base, TS_BASE));
+            env->SetLongField(dpkt, duration,av_rescale_q(state->pkt.duration, state->fmt_ctx->streams[state->pkt.stream_index]->time_base, (AVRational){1, state->tb_lcm}));
         
         if(state->pkt.flags & AV_PKT_FLAG_KEY)
             env->SetBooleanField(dpkt, splitPoint, JNI_TRUE);

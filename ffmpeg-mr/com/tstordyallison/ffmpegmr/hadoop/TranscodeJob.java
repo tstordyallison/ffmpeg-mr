@@ -10,6 +10,7 @@ import org.apache.hadoop.filecache.DistributedCache;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.FileUtil;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.io.BytesWritable;
 import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapreduce.Job;
@@ -20,7 +21,9 @@ import com.tstordyallison.ffmpegmr.Chunk;
 import com.tstordyallison.ffmpegmr.ChunkData;
 import com.tstordyallison.ffmpegmr.ChunkID;
 import com.tstordyallison.ffmpegmr.Chunker;
+import com.tstordyallison.ffmpegmr.Chunker.ChunkerReport;
 import com.tstordyallison.ffmpegmr.WriterThread;
+import com.tstordyallison.ffmpegmr.util.FileUtils;
 import com.tstordyallison.ffmpegmr.util.OSValidator;
 import com.tstordyallison.ffmpegmr.util.Printer;
 
@@ -30,22 +33,33 @@ public class TranscodeJob {
 		Printer.ENABLED = true;
 		Printer.USE_ERR = true;
 		WriterThread.BLOCK_SIZE *= 1; // 16Mb increments.
+		WriterThread.PRINT_WRITE = true;
 	}
 	
 	public static enum ProgressCounter { AUDIO_PROGRESS, VIDEO_PROGRESS, COMBINED_PROGRESS} 
 	
 	private static URI[] nativeLibs = null;
+	private static URI[] nativeLibs64 = null;
 	static { 
 		try {
 			nativeLibs = new URI[] {
-				new URI("s3n://ffmpeg-mr/lib64/libffmpeg-mr.so#libffmpeg-mr.so"),
-			    new URI("s3n://ffmpeg-mr/lib64/libavcodec.so#libavcodec.so.54"),
-			    new URI("s3n://ffmpeg-mr/lib64/libavformat.so#libavformat.so.54"),
-			    new URI("s3n://ffmpeg-mr/lib64/libavutil.so#libavutil.so.51"),
-			    new URI("s3n://ffmpeg-mr/lib64/libfaac.so#libfaac.so.0"),
-			    new URI("s3n://ffmpeg-mr/lib64/libx264.so#libx264.so.120"),
-			    new URI("s3n://ffmpeg-mr/lib64/libmp3lame.so#libmp3lame.so.0")
+				new URI("s3n://ffmpeg-mr/lib/libffmpeg-mr.so#libffmpeg-mr.so"),
+			    new URI("s3n://ffmpeg-mr/lib/libavcodec.so#libavcodec.so.54"),
+			    new URI("s3n://ffmpeg-mr/lib/libavformat.so#libavformat.so.54"),
+			    new URI("s3n://ffmpeg-mr/lib/libavutil.so#libavutil.so.51"),
+			    new URI("s3n://ffmpeg-mr/lib/libfaac.so#libfaac.so.0"),
+			    new URI("s3n://ffmpeg-mr/lib/libx264.so#libx264.so.120"),
+			    new URI("s3n://ffmpeg-mr/lib/libmp3lame.so#libmp3lame.so.0")
 			};
+			nativeLibs64 = new URI[] {
+					new URI("s3n://ffmpeg-mr/lib64/libffmpeg-mr.so#libffmpeg-mr.so"),
+				    new URI("s3n://ffmpeg-mr/lib64/libavcodec.so#libavcodec.so.54"),
+				    new URI("s3n://ffmpeg-mr/lib64/libavformat.so#libavformat.so.54"),
+				    new URI("s3n://ffmpeg-mr/lib64/libavutil.so#libavutil.so.51"),
+				    new URI("s3n://ffmpeg-mr/lib64/libfaac.so#libfaac.so.0"),
+				    new URI("s3n://ffmpeg-mr/lib64/libx264.so#libx264.so.120"),
+				    new URI("s3n://ffmpeg-mr/lib64/libmp3lame.so#libmp3lame.so.0")
+				};
 		} catch (URISyntaxException e) {
 		}
 	}
@@ -66,8 +80,8 @@ public class TranscodeJob {
 		if(args.length == 0)
 		{
 			args = new String[2];
-			args[0] = "file:///Volumes/Media/Movies/Avatar (2009).m4v";
-			args[1] = "file:///Users/tom/Code/fyp/example-videos/Test.mp4.seq.hmapped";
+			args[0] = "file:///Users/tom/Code/fyp/example-videos/Test.avi";
+			args[1] = "file:///Users/tom/Code/fyp/example-videos/Test.avi.seq.hmapped";
 		}
 	        
 		// --------------------------
@@ -88,7 +102,8 @@ public class TranscodeJob {
 			
 			FileSystem fsSrc = FileSystem.get(new URI(args[0]), config);
 			FileSystem fsDst = FileSystem.get(new URI("file://" + tempLocation.getAbsolutePath()), config);
-			FileUtil.copy(fsSrc, new Path(args[0]) , fsDst, new Path("file://" + tempLocation.getAbsolutePath()), false, true, config);
+			Printer.println("Copying input file to local filesystem.");
+			FileUtils.copy(fsSrc, new Path(args[0]) , fsDst, new Path("file://" + tempLocation.getAbsolutePath()), false, true, config);
 			
 			movieFile = tempLocation;
 			
@@ -97,7 +112,13 @@ public class TranscodeJob {
 		}
 		
 		// Demux the file.
-		long jobPacketCount = Chunker.chunkInputFile(movieFile, demuxData.toUri().toString());
+		ChunkerReport report = Chunker.chunkInputFile(movieFile, demuxData.toUri().toString());
+        Printer.println("Total number of frames to process: " + report.getPacketCount());  
+        config.setLong("tsa.tstordyallison.ffmpegmr.packetcount", report.getPacketCount());
+        config.setLong("tsa.tstordyallison.ffmpegmr.duration", report.getEndTS());
+		
+		if(!args[0].startsWith("file://"))
+			movieFile.delete();
 		
 		// --------------------------
 		// Run the transcode job.
@@ -107,15 +128,12 @@ public class TranscodeJob {
 		if(!OSValidator.isMac())
 		{	
 	        DistributedCache.createSymlink(config);
-	        if(System.getProperty("os.arch").contains("64"))
-	        {
-				for(URI lib : nativeLibs)
+	        //if(System.getProperty("os.arch").contains("64"))
+				for(URI lib : nativeLibs64)
 					DistributedCache.addCacheFile(lib, config);
-	        }
-	        else if(System.getProperty("os.arch").contains("x86"))
-	        {
-		        throw new RuntimeException("32 bit JVMs are not currently supported.");
-	        }
+	        //else if(System.getProperty("os.arch").contains("86"))
+		        //for(URI lib : nativeLibs)
+					//DistributedCache.addCacheFile(lib, config);
 		}
 
 		Job job = new Job(config);
@@ -127,12 +145,12 @@ public class TranscodeJob {
 	    job.setMapOutputKeyClass(LongWritable.class);
 	    job.setMapOutputValueClass(Chunk.class);
 	    
-		//job.setNumReduceTasks(3);
-		//job.setReducerClass(RemuxReducer.class);
+		job.setNumReduceTasks(3);
+		job.setReducerClass(RemuxReducer.class);
 		
 	    job.setOutputFormatClass(SequenceFileOutputFormat.class);
 	    job.setOutputKeyClass(LongWritable.class);
-	    job.setOutputValueClass(Chunk.class);
+	    job.setOutputValueClass(BytesWritable.class);
 	    
         SequenceFileInputFormat.addInputPath(job, demuxData);
         SequenceFileOutputFormat.setOutputPath(job, new Path(args[1] + "-" + jobID));
@@ -140,8 +158,7 @@ public class TranscodeJob {
         job.setJarByClass(TranscodeMapper.class);
         job.setJarByClass(ChunkID.class);
         job.setJarByClass(ChunkData.class);
-        
-        Printer.println("Total number of frames to process: " + jobPacketCount);        
+       
         job.waitForCompletion(true);
         
         FileSystem.get(config).delete(demuxData, false);
@@ -155,8 +172,16 @@ public class TranscodeJob {
 	
 	private static void copyNativeToLibPath(JobConf config) throws IOException, URISyntaxException
 	{
+		URI[] libs = null;
+		if(System.getProperty("os.arch").contains("64"))
+			libs = nativeLibs64;
+		else if(System.getProperty("os.arch").contains("86"))
+			libs = nativeLibs;
+		else
+			throw new RuntimeException("Platform: " + System.getProperty("os.arch") + " not supported.");
+		
 		// Copy all of the native libraries to the cwd.
-		for(URI lib : nativeLibs)
+		for(URI lib : libs)
 		{
 			String[] libSplit = lib.toString().split("#");
 			if(libSplit.length == 2)
@@ -191,4 +216,6 @@ public class TranscodeJob {
 			}
 		}
 	}
+	
+
 }

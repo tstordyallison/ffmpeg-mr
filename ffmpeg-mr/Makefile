@@ -13,8 +13,6 @@ all: $(OUTPUT)
 
 $(OUTPUT): JNI.o SharedUtil.o ffmpeg_tpl.o Demuxer.o Transcoder.o
 	$(CCPP) -shared -Wl ffmpeg_tpl.o tpl.o JNI.o SharedUtil.o Demuxer.o Transcoder.o -lavcodec -lavformat -lavutil -lmp3lame -lx264 -lfaac -lz -lbz2 $(LDFLAGS) -o $(OUTPUT)
-	hadoop fs -put libffmpeg-mr.so s3://ffmpeg-mr/lib64/libffmpeg-mr.so
-	clean
 
 JNI.o: JNI.cpp
 	$(CCPP) $(CFLAGS) JNI.cpp

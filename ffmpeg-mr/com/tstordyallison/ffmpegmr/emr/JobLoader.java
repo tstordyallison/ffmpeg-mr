@@ -36,24 +36,29 @@ public class JobLoader {
 	private static final String AMI_VERSION = "2.0";
     private static final String HADOOP_VERSION = "0.20.205";
     
-    private static final int    INSTANCE_COUNT = 3;
-    private static final String INSTANCE_TYPE = InstanceType.M1Large.toString();
-    private static final int    NUMBER_OF_CORES = 2;
+    private static final int    INSTANCE_COUNT = 2;
+    private static final String INSTANCE_TYPE = InstanceType.C1Xlarge.toString();
+    private static final int    NUMBER_OF_CORES = 8;
+    
+    private static final String TARGET_JOBFLOWID = "j-28PMJE1NB9A61";
     
     private static final UUID   RANDOM_UUID = UUID.randomUUID();
     private static final String FLOW_NAME = "ffmpeg-mr-" + RANDOM_UUID.toString();
     private static final String BUCKET_NAME = "ffmpeg-mr";
-    private static final String S3N_HADOOP_JAR = "s3n://ffmpeg-mr/ffmpegmr.jar";
+    private static final String S3N_HADOOP_JAR = "s3n://ffmpeg-mr/jar/ffmpegmr.jar";
     private static final String S3N_LOG_URI = "s3n://" + BUCKET_NAME + "/jobs";
     private static final String EC2_KEY_NAME = "tstordyallison";
     private static final String REGION_ID =  "eu-west-1";
     private static final String EMR_ENDPOINT = "https://elasticmapreduce." + REGION_ID + ".amazonaws.com";
+    private static final String MASTER_INSTANCE_TYPE = InstanceType.M1Small.toString();
     
-    private static final boolean USE_NEW_CLUSTER = true;
+    private static final boolean USE_NEW_CLUSTER = false;
     private static final boolean DEBUGGING = true;
-    private static final boolean STAY_ALIVE = false;
+    private static final boolean STAY_ALIVE = true;
 
-    private static final String[] JOB_ARGS = new String[] { "s3://ffmpeg-mr/Test.mp4", 
+    // Shutter.Island.2010.720p.BluRay.x264.DTS-WiKi.m4v
+    
+    private static final String[] JOB_ARGS = new String[] { "s3://ffmpeg-mr/movies/Test.mkv", 
     														"s3://ffmpeg-mr/output/" + FLOW_NAME};
     private static final List<JobFlowExecutionState> DONE_STATES = Arrays
         .asList(new JobFlowExecutionState[] { JobFlowExecutionState.COMPLETED,
@@ -81,7 +86,7 @@ public class JobLoader {
         try {
         	// Copy the jar up to s3.
         	TransferManager tm = new TransferManager(credentials);
-        	Upload upload = tm.upload("ffmpeg-mr", "ffmpegmr.jar", new File("ffmpegmr.jar")); 
+        	Upload upload = tm.upload("ffmpeg-mr", "jar/ffmpegmr.jar", new File("ffmpegmr.jar")); 
         	upload.waitForCompletion();
         	tm.shutdownNow();
         	System.out.println("Upload of jar file complete.");
@@ -116,22 +121,42 @@ public class JobLoader {
             	
                 JobFlowInstancesConfig instances = new JobFlowInstancesConfig();
                 instances.setHadoopVersion(HADOOP_VERSION);
-                instances.setInstanceCount(INSTANCE_COUNT);
-                instances.setMasterInstanceType(INSTANCE_TYPE);
-                instances.setSlaveInstanceType(INSTANCE_TYPE);
+                if(INSTANCE_COUNT == 1)
+                {
+                	instances.setInstanceCount(INSTANCE_COUNT);
+                	instances.setMasterInstanceType(INSTANCE_TYPE);
+                    instances.setSlaveInstanceType(INSTANCE_TYPE);
+                }
+                else
+                {
+                	instances.setInstanceCount(INSTANCE_COUNT+1);
+                	instances.setMasterInstanceType(MASTER_INSTANCE_TYPE);
+                    instances.setSlaveInstanceType(INSTANCE_TYPE);
+                }
+                
                 instances.setEc2KeyName(EC2_KEY_NAME);
                 if(STAY_ALIVE)
                 	instances.setKeepJobFlowAliveWhenNoSteps(true);
                 
+                // Bootstrap the multi-part support.
+                BootstrapActionConfig bsMultiSupport = new BootstrapActionConfig();
+                bsMultiSupport.setName("Configure multi-part/5TB support...");
+                bsMultiSupport.setScriptBootstrapAction(
+                		new ScriptBootstrapActionConfig("s3://elasticmapreduce/bootstrap-actions/configure-hadoop", 
+                				Arrays.asList(new String[] {"-c", "fs.s3.multipart.uploads.enabled=true",
+                											"-c", "fs.s3.multipart.uploads.split.size=524288000",
+                											"-c", "fs.s3n.multipart.uploads.enabled=true",
+                											"-c", "fs.s3n.multipart.uploads.split.size=524288000",})));
+                
                 // For now this only allow for us to use identical machines.
-                BootstrapActionConfig bootstrap = new BootstrapActionConfig();
-                bootstrap.setName("Configure map task max...");
-                bootstrap.setScriptBootstrapAction(
+                BootstrapActionConfig bsCoreNumber = new BootstrapActionConfig();
+                bsCoreNumber.setName("Configure map task max...");
+                bsCoreNumber.setScriptBootstrapAction(
                 		new ScriptBootstrapActionConfig("s3://elasticmapreduce/bootstrap-actions/configure-hadoop", 
                 				Arrays.asList(new String[] {"-s", "mapred.tasktracker.map.tasks.maximum=" + NUMBER_OF_CORES })));
                 
                 RunJobFlowRequest request = new RunJobFlowRequest(FLOW_NAME, instances);
-                request.setBootstrapActions(Arrays.asList(new BootstrapActionConfig[]{ bootstrap }));
+                request.setBootstrapActions(Arrays.asList(new BootstrapActionConfig[]{ bsMultiSupport, bsCoreNumber }));
                 request.setAmiVersion(AMI_VERSION);
                 request.setLogUri(S3N_LOG_URI);
                 
@@ -183,8 +208,7 @@ public class JobLoader {
         }
         
         stopwatch.stop();
-        if(!STAY_ALIVE)
-        	System.out.println("Approx time taken for transcode: " + PeriodFormat.getDefault().print(new Period(stopwatch.getElapsedTime())));
+        System.out.println("Approx time taken for transcode: " + PeriodFormat.getDefault().print(new Period(stopwatch.getElapsedTime())));
     }
 
     public static boolean isDone(String value)
