@@ -88,9 +88,22 @@ JNIEXPORT jbyteArray JNICALL Java_com_tstordyallison_ffmpegmr_Remuxer_muxChunks(
     if(DEBUG)  
         fprintf(stderr, "Loaded %d chunks for remuxer.\n", nb_chunks);
     
-    // ------
-    // DO SOMETHING!
-    // ------
+    // ------------------------------------------------------------------------------------------
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    // ------------------------------------------------------------------------------------------
     
     // Free up all the state.
     for(int i = 0; i < nb_chunks; i++)

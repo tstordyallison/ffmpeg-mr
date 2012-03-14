@@ -35,6 +35,7 @@ public class TranscodeMapper extends Mapper<ChunkID,ChunkData,LongWritable,Chunk
 		stopwatch.start();
 		
     	Transcoder trans = new  Transcoder(key.tbNum, key.tbDen, key.outputChunkPoints, value.getData());
+    	byte[] header = trans.getStreamData();
     	List<DemuxPacket> currentPackets = new LinkedList<DemuxPacket>();
     	
     	context.setStatus(String.format("Chunk %d.%d: transcode operation starting... (pkts=%d)", key.streamID, key.chunkNumber, value.packet_count ));
@@ -57,7 +58,7 @@ public class TranscodeMapper extends Mapper<ChunkID,ChunkData,LongWritable,Chunk
     		if(pkt.splitPoint)
     		{
     			// Empty the current buffer before adding this new packet.
-    			emptyPacketBuffer(currentPackets, context);
+    			emptyPacketBuffer(header, currentPackets, context);
     		}
     		
     		// Add the new packet
@@ -65,7 +66,7 @@ public class TranscodeMapper extends Mapper<ChunkID,ChunkData,LongWritable,Chunk
     	}
     	
     	// Empty anything left in the buffer.
-    	emptyPacketBuffer(currentPackets, context);
+    	emptyPacketBuffer(header, currentPackets, context);
     	
     	context.getCounter(ProgressCounter.COMBINED_PROGRESS).increment(pkt_counter % 100);
     	
@@ -78,7 +79,7 @@ public class TranscodeMapper extends Mapper<ChunkID,ChunkData,LongWritable,Chunk
     	Printer.println("Mapper complete, time taken: " + stopwatch.getElapsedTime() + " ms. ");
     }
 	
-	private void emptyPacketBuffer(List<DemuxPacket> currentPackets, Context context)
+	private void emptyPacketBuffer(byte[] header, List<DemuxPacket> currentPackets, Context context)
 	{
 		if(currentPackets.size() > 0){
 			
@@ -99,12 +100,12 @@ public class TranscodeMapper extends Mapper<ChunkID,ChunkData,LongWritable,Chunk
 			chunkID.tbDen = currentPackets.get(0).tb_den;
 			
 			// Build value
-			ChunkData chunkData = new ChunkData(currentPackets);
+			ChunkData chunkData = new ChunkData(header, currentPackets);
 			
 			// Output value
 			try {
 				Chunk chunk = new Chunk(chunkID, chunkData);
-				context.write(new LongWritable(chunkID.startTS), chunk);
+				context.write(new LongWritable(chunkID.getMillisecondsStartTs()), chunk);
 				Printer.println("Map output: " + chunk.toString());
 			} catch (IOException e) {
 				System.err.println("IO Error writing to map output.");

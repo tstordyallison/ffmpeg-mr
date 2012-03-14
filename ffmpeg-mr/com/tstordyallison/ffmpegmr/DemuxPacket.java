@@ -9,10 +9,20 @@ public class DemuxPacket {
 	public long duration; 		
 	public byte[] data;
 
+	public long getMillisecondsTs()
+	{
+		return (long)((ts*tb_num)/((double)tb_den/1000));
+	}
+	
+	public long getMillisecondsDuration()
+	{
+		return (long)((duration*tb_num)/((double)tb_den/1000));
+	}
+	
 	@Override
 	public String toString() {
 		return "[streamID=" + streamID + ", splitPoint="
-				+ splitPoint + ", ts=" + ts + ", duration=" + duration + ", "
+				+ splitPoint + ", ts=" + getMillisecondsTs() + ", duration=" + getMillisecondsDuration() + ", "
 				+ (data != null ? "data=" + data.length + " bytes" : "") + "]";
 	}
 }

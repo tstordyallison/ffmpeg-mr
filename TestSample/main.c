@@ -294,7 +294,6 @@ static int merge_streams(const char *filename_base, const char *output_filename)
         input_fds_ret[i] = 0;
     }
     
-    // Main loop - this is an awful hacky mess. F,ix it please. And sort the interleaving.
     for(;;)
     {
         // Read in some data.
@@ -307,11 +306,7 @@ static int merge_streams(const char *filename_base, const char *output_filename)
             // For the stream we have a packet for, write out the contents to the corresponding stream output file.
             if(DEBUG_MERGE){
                 printf("Writing packet to merge for stream %d (dts=%lld, pts=%lld, size=%d)\n", pkt.stream_index, pkt.dts, pkt.pts, pkt.size);
-                //dumpbuff(pkt.data, pkt.size);
             }
-            
-           // pkt.dts += 100000;
-            //pkt.pts += 100000;
             
             int ret = av_interleaved_write_frame(output_format_context, &pkt);
             
@@ -319,16 +314,6 @@ static int merge_streams(const char *filename_base, const char *output_filename)
                 printf("Frame written: ret=%d\n", ret);
             }
             
-//            if(pkt.destruct != NULL)
-//            {
-//                printf("There is a destructor!");
-//            }
-//            else
-//            {
-//                if(pkt.data != NULL)
-//                    free(pkt.data);
-//            }
-            //av_free_packet(&pkt);
         }
         
         // Increment the current_fmt_ctx

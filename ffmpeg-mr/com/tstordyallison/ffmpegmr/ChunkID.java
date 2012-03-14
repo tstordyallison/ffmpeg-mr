@@ -63,10 +63,10 @@ public class ChunkID implements Writable, WritableComparable<ChunkID>, Comparabl
 	public String toString() {
 		try{
 			return "ChunkID [\n\t\tstreamID =\t" + streamID + ", " 
-				+ "\n\t\tstartTS =\t" + startTS + " (" + PeriodFormat.getDefault().print(new Period((long)((startTS*tbNum)/((double)tbDen/1000)))) + "), "
-				+ "\n\t\tendTS =\t\t" + endTS + " (" + PeriodFormat.getDefault().print(new Period((long)((endTS*tbNum)/((double)tbDen/1000)))) + "), "
-				+ "\n\t\tduration =\t" + (endTS-startTS) + " (" + PeriodFormat.getDefault().print(new Period((long)(((endTS-startTS)*tbNum)/((double)tbDen/1000)))) + "), "
-				+ "\n\t\ttb=\t\t" + String.format("%d/%d (%2.2f)", tbNum, tbDen, (double)tbDen/tbNum)
+				+ "\n\t\tstartTS =\t" + this.getMillisecondsStartTs() + "ms (" + PeriodFormat.getDefault().print(new Period(this.getMillisecondsStartTs())) + "), "
+				+ "\n\t\tendTS =\t\t" + this.getMillisecondsEndTs() + "ms (" + PeriodFormat.getDefault().print(new Period(this.getMillisecondsEndTs())) + "), "
+				+ "\n\t\tduration =\t" + this.getMillisecondsDuration() + "ms (" + PeriodFormat.getDefault().print(new Period(this.getMillisecondsDuration())) + "), "
+				//+ "\n\t\ttb=\t\t" + String.format("%d/%d (%2.2f)", tbNum, tbDen, (double)tbDen/tbNum)
 				+ "\n\t\tchunkPoints =\t" + toString(outputChunkPoints, Integer.MAX_VALUE)
 				+ "\n\t\tchunkNumber =\t" + chunkNumber + "\n]";
 		}
@@ -97,4 +97,19 @@ public class ChunkID implements Writable, WritableComparable<ChunkID>, Comparabl
 		return builder.toString();
 	}
 
+	public long getMillisecondsStartTs()
+	{
+		return (long)((startTS*tbNum)/((double)tbDen/1000));
+	}
+	
+	public long getMillisecondsEndTs()
+	{
+		return (long)((endTS*tbNum)/((double)tbDen/1000));
+	}
+	
+	public long getMillisecondsDuration()
+	{
+		return (long)(((endTS-startTS)*tbNum)/((double)tbDen/1000));
+	}
+	
 }

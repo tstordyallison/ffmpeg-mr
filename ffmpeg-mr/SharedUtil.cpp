@@ -52,3 +52,35 @@ int lcmf(int arr[], int size)
     arr2[1] = lcmf( arr + size / 2, size - (size / 2));
     return lcmf(arr2, 2);
 } 
+
+static void printdataline(uint8_t *data, int N)
+{
+    int i;
+    
+    for(i=0; i<N; i++)
+    {
+        printf("%02x ", data[i]);
+        printf(" ");
+    }
+    for(i=0;i<N;i++)
+    {
+        if(isgraph((unsigned) data[i]))
+            printf("%c", data[i]);
+        else
+            printf(".");
+    }
+    printf("\n");
+}
+
+void dump_buffer(uint8_t *data, int N)
+{
+    int i;
+    
+    for(i=0; i<N; i+=16)
+    {
+        if(i + 16 <= N)
+            printdataline((uint8_t *)data+i, 16);
+        else
+            printdataline((uint8_t *)data+1, N - i);
+    }
+}

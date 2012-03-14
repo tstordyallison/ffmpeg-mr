@@ -7,16 +7,16 @@
 #define DEBUG 1
 #define DEBUG_PRINT 0
 
-// -----------------------------------------------------------------
-// This format is a bit of a hack.
-// The way that the AVPackets are stored needs changed so that we use the unbounded array support in 
-// tpl, rather than just loads of things one after the other.
-// ----------------------------------------------------------------
-// This is the format definition for the AVStream that we store.
-// Most of the data we store for a stream, is really the codec context.
-// We don't store any of the transient information about the stream - this is not what we are bothered about.
-// This takes most of its def. from the copy_stream method found in ffmpeg.c
-
+/* -----------------------------------------------------------------
+ This format is a bit of a hack.
+ The way that the AVPackets are stored needs changed so that we use the unbounded array support in 
+ tpl, rather than just loads of things one after the other.
+ ----------------------------------------------------------------
+ This is the format definition for the AVStream that we store.
+ Most of the data we store for a stream, is really the codec context.
+ We don't store any of the transient information about the stream - this is not what we are bothered about.
+ This takes most of its def. from the copy_stream method found in ffmpeg.c
+*/
 #define AVSTREAM_TPL_FORMAT "iiiiiiiiiiiiiIiiiiiiiiiiiiiB"
 /*
 ----- STREAM ------
@@ -108,8 +108,6 @@ int read_avstream_chunk_as_cc_from_memory(uint8_t *buf, size_t buf_size, AVCodec
     return 0;
 }
 
-
-
 int read_avstream_chunk_from_memory(uint8_t *buf, int buf_size, AVFormatContext *os, AVStream **stream){
     return -1;
 }
@@ -121,6 +119,7 @@ int read_avstream_chunk_from_fd(int fd, AVFormatContext *os, AVStream **new_stre
     tpl_bin data;
     int ret;
     
+    // TODO: replace with avformat_new_stream()
     *new_stream = av_new_stream(os, 0);
     if (!*new_stream) {
         fprintf(stderr, "Could not alloc stream\n");
@@ -238,6 +237,11 @@ int write_avstream_chunk_to_fd(AVStream *stream, int fd){
         write(fd, buffer, size);
     free(buffer);
     return ret;
+}
+
+int write_avstream_chunk_as_cc_to_memory(AVCodecContext *codec_ref, AVRational stream_time_base, AVRational stream_frame_rate, uint8_t **unallocd_buffer, int *size){
+    
+    return 0;
 }
 
 // This is the format definition for the AVPackets that we store.
@@ -389,7 +393,6 @@ static int tpl_gather_image_list_callback(void *img, size_t sz, void *list_ref_o
     return 0;
 }
 
-
 int tpl_gather_image_list(uint8_t *data, size_t size, TPLImageRef **list, size_t *list_size){
     int rc = 0;
     TPLImageRefList list_ref;
@@ -409,4 +412,3 @@ int tpl_gather_image_list(uint8_t *data, size_t size, TPLImageRef **list, size_t
         return rc;
         
 }
-
