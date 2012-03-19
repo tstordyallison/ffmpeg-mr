@@ -9,11 +9,11 @@
          continueAfterRunningActions = "No"
          isPathRelative = "1"
          filePath = "ffmpeg-mr/Transcoder.cpp"
-         timestampString = "353449441.192257"
+         timestampString = "353803642.357756"
          startingColumnNumber = "9223372036854775807"
          endingColumnNumber = "9223372036854775807"
-         startingLineNumber = "906"
-         endingLineNumber = "906"
+         startingLineNumber = "914"
+         endingLineNumber = "914"
          landmarkName = "Java_com_tstordyallison_ffmpegmr_Transcoder_getNextPacket (JNIEnv *env, jobject obj)"
          landmarkType = "7">
       </FileBreakpoint>
@@ -23,11 +23,11 @@
          continueAfterRunningActions = "No"
          isPathRelative = "1"
          filePath = "ffmpeg-mr/Transcoder.cpp"
-         timestampString = "353449441.192257"
+         timestampString = "353803642.357756"
          startingColumnNumber = "9223372036854775807"
          endingColumnNumber = "9223372036854775807"
-         startingLineNumber = "592"
-         endingLineNumber = "592"
+         startingLineNumber = "603"
+         endingLineNumber = "603"
          landmarkName = "decode_packet(JNIEnv *env, TranscoderState *state)"
          landmarkType = "7">
       </FileBreakpoint>
@@ -37,25 +37,11 @@
          continueAfterRunningActions = "No"
          isPathRelative = "1"
          filePath = "ffmpeg-mr/Transcoder.cpp"
-         timestampString = "353449441.192257"
+         timestampString = "353803642.357756"
          startingColumnNumber = "9223372036854775807"
          endingColumnNumber = "9223372036854775807"
-         startingLineNumber = "725"
-         endingLineNumber = "725"
-         landmarkName = "decode_packet(JNIEnv *env, TranscoderState *state)"
-         landmarkType = "7">
-      </FileBreakpoint>
-      <FileBreakpoint
-         shouldBeEnabled = "No"
-         ignoreCount = "0"
-         continueAfterRunningActions = "No"
-         isPathRelative = "1"
-         filePath = "ffmpeg-mr/Transcoder.cpp"
-         timestampString = "353449441.192257"
-         startingColumnNumber = "9223372036854775807"
-         endingColumnNumber = "9223372036854775807"
-         startingLineNumber = "922"
-         endingLineNumber = "922"
+         startingLineNumber = "930"
+         endingLineNumber = "930"
          landmarkName = "Java_com_tstordyallison_ffmpegmr_Transcoder_getNextPacket (JNIEnv *env, jobject obj)"
          landmarkType = "7">
       </FileBreakpoint>
@@ -65,11 +51,11 @@
          continueAfterRunningActions = "No"
          isPathRelative = "1"
          filePath = "ffmpeg-mr/Transcoder.cpp"
-         timestampString = "353449441.192257"
+         timestampString = "353803642.357756"
          startingColumnNumber = "9223372036854775807"
          endingColumnNumber = "9223372036854775807"
-         startingLineNumber = "917"
-         endingLineNumber = "917"
+         startingLineNumber = "925"
+         endingLineNumber = "925"
          landmarkName = "Java_com_tstordyallison_ffmpegmr_Transcoder_getNextPacket (JNIEnv *env, jobject obj)"
          landmarkType = "7">
       </FileBreakpoint>
@@ -107,11 +93,11 @@
          continueAfterRunningActions = "No"
          isPathRelative = "1"
          filePath = "ffmpeg-mr/Transcoder.cpp"
-         timestampString = "353450136.69055"
+         timestampString = "353803642.357756"
          startingColumnNumber = "9223372036854775807"
          endingColumnNumber = "9223372036854775807"
-         startingLineNumber = "1025"
-         endingLineNumber = "1025"
+         startingLineNumber = "1036"
+         endingLineNumber = "1036"
          landmarkName = "Java_com_tstordyallison_ffmpegmr_Transcoder_getNextPacket (JNIEnv *env, jobject obj)"
          landmarkType = "7">
       </FileBreakpoint>
@@ -121,16 +107,16 @@
          continueAfterRunningActions = "No"
          isPathRelative = "1"
          filePath = "ffmpeg-mr/Transcoder.cpp"
-         timestampString = "353449441.192257"
+         timestampString = "353803642.357756"
          startingColumnNumber = "9223372036854775807"
          endingColumnNumber = "9223372036854775807"
-         startingLineNumber = "351"
-         endingLineNumber = "351"
+         startingLineNumber = "325"
+         endingLineNumber = "325"
          landmarkName = "Java_com_tstordyallison_ffmpegmr_Transcoder_initWithBytes (JNIEnv *env, jobject obj, jlong chunk_tb_num, jlong chunk_tb_den, jlongArray chunk_points, jbyteArray data)"
          landmarkType = "7">
       </FileBreakpoint>
       <FileBreakpoint
-         shouldBeEnabled = "Yes"
+         shouldBeEnabled = "No"
          ignoreCount = "0"
          condition = "pkt-&gt;pts == 17779"
          continueAfterRunningActions = "No"
@@ -149,55 +135,13 @@
          ignoreCount = "0"
          continueAfterRunningActions = "No"
          isPathRelative = "1"
-         filePath = "ffmpeg-mr/Transcoder.cpp"
-         timestampString = "353449441.192257"
-         startingColumnNumber = "9223372036854775807"
-         endingColumnNumber = "9223372036854775807"
-         startingLineNumber = "733"
-         endingLineNumber = "733"
-         landmarkName = "decode_packet(JNIEnv *env, TranscoderState *state)"
-         landmarkType = "7">
-      </FileBreakpoint>
-      <FileBreakpoint
-         shouldBeEnabled = "No"
-         ignoreCount = "0"
-         continueAfterRunningActions = "No"
-         isPathRelative = "1"
          filePath = "ffmpeg-mr/Muxer.cpp"
-         timestampString = "353427082.969636"
+         timestampString = "353464372.551007"
          startingColumnNumber = "9223372036854775807"
          endingColumnNumber = "9223372036854775807"
-         startingLineNumber = "98"
-         endingLineNumber = "98"
-         landmarkName = "Java_com_tstordyallison_ffmpegmr_Remuxer_muxChunks(JNIEnv *env, jclass clazz, jobject chunks)"
-         landmarkType = "7">
-      </FileBreakpoint>
-      <FileBreakpoint
-         shouldBeEnabled = "No"
-         ignoreCount = "0"
-         continueAfterRunningActions = "No"
-         isPathRelative = "1"
-         filePath = "ffmpeg-mr/Muxer.cpp"
-         timestampString = "353425225.666722"
-         startingColumnNumber = "9223372036854775807"
-         endingColumnNumber = "9223372036854775807"
-         startingLineNumber = "28"
-         endingLineNumber = "28"
-         landmarkName = "Java_com_tstordyallison_ffmpegmr_Remuxer_muxChunks(JNIEnv *env, jclass clazz, jobject chunks)"
-         landmarkType = "7">
-      </FileBreakpoint>
-      <FileBreakpoint
-         shouldBeEnabled = "No"
-         ignoreCount = "0"
-         continueAfterRunningActions = "No"
-         isPathRelative = "1"
-         filePath = "ffmpeg-mr/Muxer.cpp"
-         timestampString = "353427070.706675"
-         startingColumnNumber = "9223372036854775807"
-         endingColumnNumber = "9223372036854775807"
-         startingLineNumber = "88"
-         endingLineNumber = "88"
-         landmarkName = "Java_com_tstordyallison_ffmpegmr_Remuxer_muxChunks(JNIEnv *env, jclass clazz, jobject chunks)"
+         startingLineNumber = "25"
+         endingLineNumber = "25"
+         landmarkName = "read_avpacket(TPLImageRef *image_list, size_t image_list_size, size_t *image_cursor, AVPacket *pkt)"
          landmarkType = "7">
       </FileBreakpoint>
       <FileBreakpoint
@@ -220,11 +164,11 @@
          continueAfterRunningActions = "No"
          isPathRelative = "1"
          filePath = "ffmpeg-mr/Transcoder.cpp"
-         timestampString = "353450136.69055"
+         timestampString = "353803642.357756"
          startingColumnNumber = "9223372036854775807"
          endingColumnNumber = "9223372036854775807"
-         startingLineNumber = "952"
-         endingLineNumber = "952"
+         startingLineNumber = "960"
+         endingLineNumber = "960"
          landmarkName = "Java_com_tstordyallison_ffmpegmr_Transcoder_getNextPacket (JNIEnv *env, jobject obj)"
          landmarkType = "7">
       </FileBreakpoint>
@@ -234,11 +178,11 @@
          continueAfterRunningActions = "No"
          isPathRelative = "1"
          filePath = "ffmpeg-mr/Transcoder.cpp"
-         timestampString = "353450136.69055"
+         timestampString = "353803642.357756"
          startingColumnNumber = "9223372036854775807"
          endingColumnNumber = "9223372036854775807"
-         startingLineNumber = "1044"
-         endingLineNumber = "1044"
+         startingLineNumber = "1055"
+         endingLineNumber = "1055"
          landmarkName = "Java_com_tstordyallison_ffmpegmr_Transcoder_getNextPacket (JNIEnv *env, jobject obj)"
          landmarkType = "7">
       </FileBreakpoint>
@@ -248,12 +192,402 @@
          continueAfterRunningActions = "No"
          isPathRelative = "1"
          filePath = "ffmpeg-mr/Transcoder.cpp"
-         timestampString = "353450145.008152"
+         timestampString = "353803642.357756"
          startingColumnNumber = "9223372036854775807"
          endingColumnNumber = "9223372036854775807"
-         startingLineNumber = "614"
-         endingLineNumber = "614"
+         startingLineNumber = "625"
+         endingLineNumber = "625"
          landmarkName = "decode_packet(JNIEnv *env, TranscoderState *state)"
+         landmarkType = "7">
+      </FileBreakpoint>
+      <FileBreakpoint
+         shouldBeEnabled = "No"
+         ignoreCount = "0"
+         continueAfterRunningActions = "No"
+         isPathRelative = "1"
+         filePath = "ffmpeg-mr/Transcoder.cpp"
+         timestampString = "353803642.357756"
+         startingColumnNumber = "9223372036854775807"
+         endingColumnNumber = "9223372036854775807"
+         startingLineNumber = "793"
+         endingLineNumber = "793">
+      </FileBreakpoint>
+      <FileBreakpoint
+         shouldBeEnabled = "No"
+         ignoreCount = "0"
+         continueAfterRunningActions = "No"
+         isPathRelative = "1"
+         filePath = "ffmpeg-mr/Transcoder.cpp"
+         timestampString = "353803642.357756"
+         startingColumnNumber = "9223372036854775807"
+         endingColumnNumber = "9223372036854775807"
+         startingLineNumber = "402"
+         endingLineNumber = "402"
+         landmarkName = "Java_com_tstordyallison_ffmpegmr_Transcoder_initWithBytes (JNIEnv *env, jobject obj, jlong chunk_tb_num, jlong chunk_tb_den, jlongArray chunk_points, jbyteArray data)"
+         landmarkType = "7">
+      </FileBreakpoint>
+      <FileBreakpoint
+         shouldBeEnabled = "No"
+         ignoreCount = "0"
+         continueAfterRunningActions = "No"
+         isPathRelative = "1"
+         filePath = "ffmpeg-mr/Transcoder.cpp"
+         timestampString = "353803642.357756"
+         startingColumnNumber = "9223372036854775807"
+         endingColumnNumber = "9223372036854775807"
+         startingLineNumber = "1045"
+         endingLineNumber = "1045"
+         landmarkName = "Java_com_tstordyallison_ffmpegmr_Transcoder_getNextPacket (JNIEnv *env, jobject obj)"
+         landmarkType = "7">
+      </FileBreakpoint>
+      <FileBreakpoint
+         shouldBeEnabled = "No"
+         ignoreCount = "0"
+         continueAfterRunningActions = "No"
+         isPathRelative = "1"
+         filePath = "TestSample/ffmpeg.c"
+         timestampString = "353507100.495162"
+         startingColumnNumber = "9223372036854775807"
+         endingColumnNumber = "9223372036854775807"
+         startingLineNumber = "2245"
+         endingLineNumber = "2245"
+         landmarkName = "output_packet()"
+         landmarkType = "7">
+      </FileBreakpoint>
+      <FileBreakpoint
+         shouldBeEnabled = "No"
+         ignoreCount = "0"
+         continueAfterRunningActions = "No"
+         isPathRelative = "1"
+         filePath = "TestSample/ffmpeg.c"
+         timestampString = "353507100.495162"
+         startingColumnNumber = "9223372036854775807"
+         endingColumnNumber = "9223372036854775807"
+         startingLineNumber = "2250"
+         endingLineNumber = "2250"
+         landmarkName = "output_packet()"
+         landmarkType = "7">
+      </FileBreakpoint>
+      <FileBreakpoint
+         shouldBeEnabled = "No"
+         ignoreCount = "0"
+         continueAfterRunningActions = "No"
+         isPathRelative = "1"
+         filePath = "TestSample/ffmpeg.c"
+         timestampString = "353507100.495162"
+         startingColumnNumber = "9223372036854775807"
+         endingColumnNumber = "9223372036854775807"
+         startingLineNumber = "2273"
+         endingLineNumber = "2273"
+         landmarkName = "output_packet()"
+         landmarkType = "7">
+      </FileBreakpoint>
+      <FileBreakpoint
+         shouldBeEnabled = "No"
+         ignoreCount = "0"
+         continueAfterRunningActions = "No"
+         isPathRelative = "1"
+         filePath = "TestSample/ffmpeg.c"
+         timestampString = "353507100.495162"
+         startingColumnNumber = "9223372036854775807"
+         endingColumnNumber = "9223372036854775807"
+         startingLineNumber = "2275"
+         endingLineNumber = "2275"
+         landmarkName = "output_packet()"
+         landmarkType = "7">
+      </FileBreakpoint>
+      <FileBreakpoint
+         shouldBeEnabled = "No"
+         ignoreCount = "0"
+         continueAfterRunningActions = "No"
+         isPathRelative = "1"
+         filePath = "TestSample/ffmpeg.c"
+         timestampString = "353507100.495162"
+         startingColumnNumber = "9223372036854775807"
+         endingColumnNumber = "9223372036854775807"
+         startingLineNumber = "2282"
+         endingLineNumber = "2282"
+         landmarkName = "output_packet()"
+         landmarkType = "7">
+      </FileBreakpoint>
+      <FileBreakpoint
+         shouldBeEnabled = "No"
+         ignoreCount = "0"
+         continueAfterRunningActions = "No"
+         isPathRelative = "1"
+         filePath = "TestSample/ffmpeg.c"
+         timestampString = "353507100.495162"
+         startingColumnNumber = "9223372036854775807"
+         endingColumnNumber = "9223372036854775807"
+         startingLineNumber = "2287"
+         endingLineNumber = "2287"
+         landmarkName = "output_packet()"
+         landmarkType = "7">
+      </FileBreakpoint>
+      <FileBreakpoint
+         shouldBeEnabled = "No"
+         ignoreCount = "0"
+         continueAfterRunningActions = "No"
+         isPathRelative = "1"
+         filePath = "TestSample/ffmpeg.c"
+         timestampString = "353506501.588334"
+         startingColumnNumber = "9223372036854775807"
+         endingColumnNumber = "9223372036854775807"
+         startingLineNumber = "2115"
+         endingLineNumber = "2115"
+         landmarkName = "transcode_video()"
+         landmarkType = "7">
+      </FileBreakpoint>
+      <FileBreakpoint
+         shouldBeEnabled = "No"
+         ignoreCount = "0"
+         continueAfterRunningActions = "No"
+         isPathRelative = "1"
+         filePath = "TestSample/ffmpeg.c"
+         timestampString = "353506830.490068"
+         startingColumnNumber = "9223372036854775807"
+         endingColumnNumber = "9223372036854775807"
+         startingLineNumber = "1529"
+         endingLineNumber = "1529"
+         landmarkName = "do_video_out()"
+         landmarkType = "7">
+      </FileBreakpoint>
+      <FileBreakpoint
+         shouldBeEnabled = "No"
+         ignoreCount = "0"
+         continueAfterRunningActions = "No"
+         isPathRelative = "1"
+         filePath = "TestSample/ffmpeg.c"
+         timestampString = "353506914.755775"
+         startingColumnNumber = "9223372036854775807"
+         endingColumnNumber = "9223372036854775807"
+         startingLineNumber = "1630"
+         endingLineNumber = "1630"
+         landmarkName = "do_video_out()"
+         landmarkType = "7">
+      </FileBreakpoint>
+      <FileBreakpoint
+         shouldBeEnabled = "No"
+         ignoreCount = "0"
+         continueAfterRunningActions = "No"
+         isPathRelative = "1"
+         filePath = "TestSample/ffmpeg.c"
+         timestampString = "353506915.70893"
+         startingColumnNumber = "9223372036854775807"
+         endingColumnNumber = "9223372036854775807"
+         startingLineNumber = "1632"
+         endingLineNumber = "1632"
+         landmarkName = "do_video_out()"
+         landmarkType = "7">
+      </FileBreakpoint>
+      <FileBreakpoint
+         shouldBeEnabled = "No"
+         ignoreCount = "0"
+         continueAfterRunningActions = "No"
+         isPathRelative = "1"
+         filePath = "ffmpeg-mr/Transcoder.cpp"
+         timestampString = "353803642.357756"
+         startingColumnNumber = "9223372036854775807"
+         endingColumnNumber = "9223372036854775807"
+         startingLineNumber = "810"
+         endingLineNumber = "810"
+         landmarkName = "Java_com_tstordyallison_ffmpegmr_Transcoder_getNextPacket (JNIEnv *env, jobject obj)"
+         landmarkType = "7">
+      </FileBreakpoint>
+      <FileBreakpoint
+         shouldBeEnabled = "No"
+         ignoreCount = "0"
+         continueAfterRunningActions = "No"
+         isPathRelative = "1"
+         filePath = "ffmpeg-mr/Transcoder.cpp"
+         timestampString = "353803642.357756"
+         startingColumnNumber = "9223372036854775807"
+         endingColumnNumber = "9223372036854775807"
+         startingLineNumber = "495"
+         endingLineNumber = "495"
+         landmarkName = "decode_packet(JNIEnv *env, TranscoderState *state)"
+         landmarkType = "7">
+      </FileBreakpoint>
+      <FileBreakpoint
+         shouldBeEnabled = "No"
+         ignoreCount = "0"
+         continueAfterRunningActions = "No"
+         isPathRelative = "1"
+         filePath = "ffmpeg-mr/Transcoder.cpp"
+         timestampString = "353803642.357756"
+         startingColumnNumber = "9223372036854775807"
+         endingColumnNumber = "9223372036854775807"
+         startingLineNumber = "817"
+         endingLineNumber = "817"
+         landmarkName = "Java_com_tstordyallison_ffmpegmr_Transcoder_getNextPacket (JNIEnv *env, jobject obj)"
+         landmarkType = "7">
+      </FileBreakpoint>
+      <FileBreakpoint
+         shouldBeEnabled = "No"
+         ignoreCount = "0"
+         continueAfterRunningActions = "No"
+         isPathRelative = "1"
+         filePath = "ffmpeg-mr/Transcoder.cpp"
+         timestampString = "353803642.357756"
+         startingColumnNumber = "9223372036854775807"
+         endingColumnNumber = "9223372036854775807"
+         startingLineNumber = "555"
+         endingLineNumber = "555"
+         landmarkName = "decode_packet(JNIEnv *env, TranscoderState *state)"
+         landmarkType = "7">
+      </FileBreakpoint>
+      <FileBreakpoint
+         shouldBeEnabled = "No"
+         ignoreCount = "0"
+         continueAfterRunningActions = "No"
+         isPathRelative = "1"
+         filePath = "ffmpeg-mr/Transcoder.cpp"
+         timestampString = "353803642.357756"
+         startingColumnNumber = "9223372036854775807"
+         endingColumnNumber = "9223372036854775807"
+         startingLineNumber = "504"
+         endingLineNumber = "504"
+         landmarkName = "decode_packet(JNIEnv *env, TranscoderState *state)"
+         landmarkType = "7">
+      </FileBreakpoint>
+      <FileBreakpoint
+         shouldBeEnabled = "No"
+         ignoreCount = "0"
+         continueAfterRunningActions = "No"
+         isPathRelative = "1"
+         filePath = "ffmpeg-mr/Transcoder.cpp"
+         timestampString = "353803642.357756"
+         startingColumnNumber = "9223372036854775807"
+         endingColumnNumber = "9223372036854775807"
+         startingLineNumber = "853"
+         endingLineNumber = "853"
+         landmarkName = "Java_com_tstordyallison_ffmpegmr_Transcoder_getNextPacket (JNIEnv *env, jobject obj)"
+         landmarkType = "7">
+      </FileBreakpoint>
+      <FileBreakpoint
+         shouldBeEnabled = "No"
+         ignoreCount = "0"
+         continueAfterRunningActions = "No"
+         isPathRelative = "1"
+         filePath = "ffmpeg-mr/Transcoder.cpp"
+         timestampString = "353803642.357756"
+         startingColumnNumber = "9223372036854775807"
+         endingColumnNumber = "9223372036854775807"
+         startingLineNumber = "876"
+         endingLineNumber = "876"
+         landmarkName = "Java_com_tstordyallison_ffmpegmr_Transcoder_getNextPacket (JNIEnv *env, jobject obj)"
+         landmarkType = "7">
+      </FileBreakpoint>
+      <FileBreakpoint
+         shouldBeEnabled = "No"
+         ignoreCount = "0"
+         continueAfterRunningActions = "No"
+         isPathRelative = "1"
+         filePath = "ffmpeg-mr/Transcoder.cpp"
+         timestampString = "353803642.357756"
+         startingColumnNumber = "9223372036854775807"
+         endingColumnNumber = "9223372036854775807"
+         startingLineNumber = "870"
+         endingLineNumber = "870"
+         landmarkName = "Java_com_tstordyallison_ffmpegmr_Transcoder_getNextPacket (JNIEnv *env, jobject obj)"
+         landmarkType = "7">
+      </FileBreakpoint>
+      <FileBreakpoint
+         shouldBeEnabled = "No"
+         ignoreCount = "0"
+         continueAfterRunningActions = "No"
+         isPathRelative = "0"
+         filePath = "/Users/tom/Code/fyp/ffmpeg/libavcodec/libx264.c"
+         timestampString = "353539609.844482"
+         startingColumnNumber = "9223372036854775807"
+         endingColumnNumber = "9223372036854775807"
+         startingLineNumber = "195"
+         endingLineNumber = "195"
+         landmarkName = "X264_frame()"
+         landmarkType = "7">
+      </FileBreakpoint>
+      <FileBreakpoint
+         shouldBeEnabled = "No"
+         ignoreCount = "0"
+         continueAfterRunningActions = "No"
+         isPathRelative = "1"
+         filePath = "ffmpeg-mr/Transcoder.cpp"
+         timestampString = "353803642.357756"
+         startingColumnNumber = "9223372036854775807"
+         endingColumnNumber = "9223372036854775807"
+         startingLineNumber = "529"
+         endingLineNumber = "529"
+         landmarkName = "decode_packet(JNIEnv *env, TranscoderState *state)"
+         landmarkType = "7">
+      </FileBreakpoint>
+      <FileBreakpoint
+         shouldBeEnabled = "No"
+         ignoreCount = "0"
+         continueAfterRunningActions = "No"
+         isPathRelative = "1"
+         filePath = "ffmpeg-mr/Transcoder.cpp"
+         timestampString = "353803642.357756"
+         startingColumnNumber = "9223372036854775807"
+         endingColumnNumber = "9223372036854775807"
+         startingLineNumber = "513"
+         endingLineNumber = "513"
+         landmarkName = "decode_packet(JNIEnv *env, TranscoderState *state)"
+         landmarkType = "7">
+      </FileBreakpoint>
+      <FileBreakpoint
+         shouldBeEnabled = "No"
+         ignoreCount = "0"
+         continueAfterRunningActions = "No"
+         isPathRelative = "1"
+         filePath = "ffmpeg-mr/Transcoder.cpp"
+         timestampString = "353803642.357756"
+         startingColumnNumber = "9223372036854775807"
+         endingColumnNumber = "9223372036854775807"
+         startingLineNumber = "877"
+         endingLineNumber = "877"
+         landmarkName = "Java_com_tstordyallison_ffmpegmr_Transcoder_getNextPacket (JNIEnv *env, jobject obj)"
+         landmarkType = "7">
+      </FileBreakpoint>
+      <FileBreakpoint
+         shouldBeEnabled = "No"
+         ignoreCount = "0"
+         continueAfterRunningActions = "No"
+         isPathRelative = "0"
+         filePath = "/Users/tom/Code/fyp/ffmpeg/libavcodec/libx264.c"
+         timestampString = "353774018.338494"
+         startingColumnNumber = "9223372036854775807"
+         endingColumnNumber = "9223372036854775807"
+         startingLineNumber = "196"
+         endingLineNumber = "196"
+         landmarkName = "X264_frame()"
+         landmarkType = "7">
+      </FileBreakpoint>
+      <FileBreakpoint
+         shouldBeEnabled = "No"
+         ignoreCount = "0"
+         continueAfterRunningActions = "No"
+         isPathRelative = "1"
+         filePath = "ffmpeg-mr/Transcoder.cpp"
+         timestampString = "353803642.357756"
+         startingColumnNumber = "9223372036854775807"
+         endingColumnNumber = "9223372036854775807"
+         startingLineNumber = "866"
+         endingLineNumber = "866"
+         landmarkName = "Java_com_tstordyallison_ffmpegmr_Transcoder_getNextPacket (JNIEnv *env, jobject obj)"
+         landmarkType = "7">
+      </FileBreakpoint>
+      <FileBreakpoint
+         shouldBeEnabled = "No"
+         ignoreCount = "0"
+         continueAfterRunningActions = "No"
+         isPathRelative = "1"
+         filePath = "TestSample/ffmpeg.c"
+         timestampString = "353774936.771501"
+         startingColumnNumber = "9223372036854775807"
+         endingColumnNumber = "9223372036854775807"
+         startingLineNumber = "1626"
+         endingLineNumber = "1626"
+         landmarkName = "do_video_out()"
          landmarkType = "7">
       </FileBreakpoint>
       <FileBreakpoint
@@ -261,13 +595,41 @@
          ignoreCount = "0"
          continueAfterRunningActions = "No"
          isPathRelative = "1"
-         filePath = "ffmpeg-mr/Transcoder.cpp"
-         timestampString = "353452384.456749"
+         filePath = "ffmpeg-mr/Muxer.cpp"
+         timestampString = "353849847.233299"
          startingColumnNumber = "9223372036854775807"
          endingColumnNumber = "9223372036854775807"
-         startingLineNumber = "791"
-         endingLineNumber = "791"
-         landmarkName = "Java_com_tstordyallison_ffmpegmr_Transcoder_getStreamData(JNIEnv *env, jobject obj)"
+         startingLineNumber = "132"
+         endingLineNumber = "132"
+         landmarkName = "Java_com_tstordyallison_ffmpegmr_Remuxer_muxChunks(JNIEnv *env, jclass clazz, jobject chunks)"
+         landmarkType = "7">
+      </FileBreakpoint>
+      <FileBreakpoint
+         shouldBeEnabled = "Yes"
+         ignoreCount = "0"
+         continueAfterRunningActions = "No"
+         isPathRelative = "1"
+         filePath = "ffmpeg-mr/Muxer.cpp"
+         timestampString = "353849848.260074"
+         startingColumnNumber = "9223372036854775807"
+         endingColumnNumber = "9223372036854775807"
+         startingLineNumber = "144"
+         endingLineNumber = "144"
+         landmarkName = "Java_com_tstordyallison_ffmpegmr_Remuxer_muxChunks(JNIEnv *env, jclass clazz, jobject chunks)"
+         landmarkType = "7">
+      </FileBreakpoint>
+      <FileBreakpoint
+         shouldBeEnabled = "Yes"
+         ignoreCount = "0"
+         continueAfterRunningActions = "No"
+         isPathRelative = "1"
+         filePath = "ffmpeg-mr/Muxer.cpp"
+         timestampString = "353849853.939692"
+         startingColumnNumber = "9223372036854775807"
+         endingColumnNumber = "9223372036854775807"
+         startingLineNumber = "197"
+         endingLineNumber = "197"
+         landmarkName = "Java_com_tstordyallison_ffmpegmr_Remuxer_muxChunks(JNIEnv *env, jclass clazz, jobject chunks)"
          landmarkType = "7">
       </FileBreakpoint>
    </FileBreakpoints>

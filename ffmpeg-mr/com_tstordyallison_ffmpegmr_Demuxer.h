@@ -7,6 +7,20 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+#undef com_tstordyallison_ffmpegmr_Demuxer_AVMEDIA_TYPE_UNKNOWN
+#define com_tstordyallison_ffmpegmr_Demuxer_AVMEDIA_TYPE_UNKNOWN -1L
+#undef com_tstordyallison_ffmpegmr_Demuxer_AVMEDIA_TYPE_VIDEO
+#define com_tstordyallison_ffmpegmr_Demuxer_AVMEDIA_TYPE_VIDEO 0L
+#undef com_tstordyallison_ffmpegmr_Demuxer_AVMEDIA_TYPE_AUDIO
+#define com_tstordyallison_ffmpegmr_Demuxer_AVMEDIA_TYPE_AUDIO 1L
+#undef com_tstordyallison_ffmpegmr_Demuxer_AVMEDIA_TYPE_DATA
+#define com_tstordyallison_ffmpegmr_Demuxer_AVMEDIA_TYPE_DATA 2L
+#undef com_tstordyallison_ffmpegmr_Demuxer_AVMEDIA_TYPE_SUBTITLE
+#define com_tstordyallison_ffmpegmr_Demuxer_AVMEDIA_TYPE_SUBTITLE 3L
+#undef com_tstordyallison_ffmpegmr_Demuxer_AVMEDIA_TYPE_ATTACHMENT
+#define com_tstordyallison_ffmpegmr_Demuxer_AVMEDIA_TYPE_ATTACHMENT 4L
+#undef com_tstordyallison_ffmpegmr_Demuxer_AVMEDIA_TYPE_NB
+#define com_tstordyallison_ffmpegmr_Demuxer_AVMEDIA_TYPE_NB 5L
 /*
  * Class:     com_tstordyallison_ffmpegmr_Demuxer
  * Method:    initDemuxWithFile
@@ -22,6 +36,14 @@ JNIEXPORT jint JNICALL Java_com_tstordyallison_ffmpegmr_Demuxer_initDemuxWithFil
  */
 JNIEXPORT jint JNICALL Java_com_tstordyallison_ffmpegmr_Demuxer_initDemuxWithStream
   (JNIEnv *, jobject, jobject);
+
+/*
+ * Class:     com_tstordyallison_ffmpegmr_Demuxer
+ * Method:    getStreamCount
+ * Signature: ()I
+ */
+JNIEXPORT jint JNICALL Java_com_tstordyallison_ffmpegmr_Demuxer_getStreamCount
+  (JNIEnv *, jobject);
 
 /*
  * Class:     com_tstordyallison_ffmpegmr_Demuxer
@@ -41,10 +63,18 @@ JNIEXPORT jobject JNICALL Java_com_tstordyallison_ffmpegmr_Demuxer_getNextChunkI
 
 /*
  * Class:     com_tstordyallison_ffmpegmr_Demuxer
- * Method:    getStreamCount
- * Signature: ()I
+ * Method:    getStreamMediaTypeRaw
+ * Signature: (I)I
  */
-JNIEXPORT jint JNICALL Java_com_tstordyallison_ffmpegmr_Demuxer_getStreamCount
+JNIEXPORT jint JNICALL Java_com_tstordyallison_ffmpegmr_Demuxer_getStreamMediaTypeRaw
+  (JNIEnv *, jobject, jint);
+
+/*
+ * Class:     com_tstordyallison_ffmpegmr_Demuxer
+ * Method:    getDurationMs
+ * Signature: ()J
+ */
+JNIEXPORT jlong JNICALL Java_com_tstordyallison_ffmpegmr_Demuxer_getDurationMs
   (JNIEnv *, jobject);
 
 /*

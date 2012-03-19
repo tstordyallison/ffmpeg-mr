@@ -90,6 +90,12 @@ public:
 static DemuxTracker tracker;
 
 
+static int initDemux(){
+    
+    
+}
+
+
 // JNI Methods.
 // --------
 
@@ -201,12 +207,15 @@ JNIEXPORT jint JNICALL Java_com_tstordyallison_ffmpegmr_Demuxer_initDemuxWithFil
             }
             else if(lcm < state->common_tb[i].den)
             {
-                // Can this ever happen? 
-                fprintf(stderr, "LCM calc cockup.\n");
+                // This usually means we've had an overflow and the time bases are too big.
+                // FIXME: As a bit of a hack we will just return MICROSECONDS.
+                int mul = (AV_TIME_BASE * 1000) / state->common_tb[i].den;
+                state->common_tb[i].num *= mul;
+                state->common_tb[i].den = AV_TIME_BASE * 1000;
             }
             
             if(DEBUG)
-                fprintf(stderr, "Output tb (%d): %d/%d (1/=%2.2f)\n", i, state->common_tb[i].num, state->common_tb[i].den, (float)state->common_tb[i].den/state->common_tb[i].num);
+                fprintf(stderr, "Modified tb (%d): %d/%d (1/=%2.2f)\n", i, state->common_tb[i].num, state->common_tb[i].den, (float)state->common_tb[i].den/state->common_tb[i].num);
         
         }
        
@@ -245,17 +254,18 @@ failure:
     }
 }
 
-typedef struct StreamRead {
-    int stream_idx;
-    DemuxState *objstate;
-} StreamRead;
 
 /*
- * Custom read function for TPL stream data.
+ * FFmpeg custom IO read function - for use with JNI InputStream.
  */
-static int StreamData_Read(/*StreamRead*/ void *stream_choice, uint8_t *buf, int buf_size){
+static int Java_InputStream_Read(/*jobject*/ void *jni_input_stream, uint8_t *buf, int buf_size){
+    
+    
+    
+    
     return -1;
 }
+
 
 /*
  * Class:     com_tstordyallison_ffmpegmr_Demuxer
@@ -264,28 +274,29 @@ static int StreamData_Read(/*StreamRead*/ void *stream_choice, uint8_t *buf, int
  */
 JNIEXPORT jint JNICALL Java_com_tstordyallison_ffmpegmr_Demuxer_initDemuxWithStream
 (JNIEnv *env, jobject obj, jobject stream){
-    // Not yet implemented - "Use av_open_input_stream() instead of av_open_input_file() to open your stream".
-    // Define a bunch of functions that can then read the stream.
-    // Going to be a bit messy.
+    
+    uint8_t *buffer = (uint8_t*)malloc(4096); 
+    AVIOContext *input_stream = avio_alloc_context(buffer, 4096, 0, stream, Java_InputStream_Read, NULL, NULL);
+    
     return -1;
 }
 
 
 /*
- * FFmpeg custom IO read function - for use with JNI InputStream.
+ * Class:     com_tstordyallison_ffmpegmr_Demuxer
+ * Method:    getMediaType
+ * Signature: (I)I
  */
-static int Java_InputStream_Read(/*jobject*/ void *jni_input_stream, uint8_t *buf, int buf_size){
-    return -1;
+JNIEXPORT jint JNICALL Java_com_tstordyallison_ffmpegmr_Demuxer_getStreamMediaTypeRaw
+(JNIEnv *env, jobject obj, jint streamID){
+    DemuxState *state = tracker.getObjectState(env, obj);
+    if(state != NULL)
+    {
+        return state->fmt_ctx->streams[(int)streamID]->codec->codec_type;
+    }
+    else
+        return -1;
 }
-
-/*
- * FFmpeg custom IO seek function - for use with JNI InputStream.
- */
-
-static int64_t Java_InputStream_Seek(/*jobject*/ void *jni_input_stream, int64_t offset, int whence){
-    return -1;
-}
-
 
 /*
  * Class:     com_tstordyallison_ffmpegmr_Demuxer
@@ -322,6 +333,25 @@ JNIEXPORT jint JNICALL Java_com_tstordyallison_ffmpegmr_Demuxer_getStreamCount
     else
         return -1;
 }
+
+
+/*
+ * Class:     com_tstordyallison_ffmpegmr_Demuxer
+ * Method:    getDurationMs
+ * Signature: ()J
+ */
+JNIEXPORT jlong JNICALL Java_com_tstordyallison_ffmpegmr_Demuxer_getDurationMs
+(JNIEnv *env, jobject obj){
+    
+    DemuxState *state = tracker.getObjectState(env, obj);
+    if(state != NULL)
+    {
+        return av_rescale_q(state->fmt_ctx->duration, AV_TIME_BASE_Q, (AVRational){1, 1000});
+    }
+    else
+        return -1;
+}
+
 
 
 /*

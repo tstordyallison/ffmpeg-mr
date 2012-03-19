@@ -6,13 +6,13 @@ JNIHEADERS=$(JAVA_HOME)/include
 JNIHEADERS2=$(JAVA_HOME)/include/linux
 FFMPEGOUTPUT=../ffmpeg
 
-CFLAGS= -fPIC -DDEBUG=1 -D__STDC_CONSTANT_MACROS -c -Wall -I. -I$(FFMPEGOUTPUT) -I$(JNIHEADERS) -I$(JNIHEADERS2)
-LDFLAGS=-L$(HOME)/build-ouptut/lib
+CFLAGS= -fPIC -DDEBUG=1 -DAWSBUILD=1 -D__STDC_CONSTANT_MACROS -c -Wall -I. -I$(FFMPEGOUTPUT) -I$(JNIHEADERS) -I$(JNIHEADERS2)
+LDFLAGS=-L../../build-ouptut/lib
 
 all: $(OUTPUT)
 
-$(OUTPUT): JNI.o SharedUtil.o ffmpeg_tpl.o Demuxer.o Transcoder.o
-	$(CCPP) -shared -Wl ffmpeg_tpl.o tpl.o JNI.o SharedUtil.o Demuxer.o Transcoder.o -lavcodec -lavformat -lavutil -lmp3lame -lx264 -lfaac -lz -lbz2 $(LDFLAGS) -o $(OUTPUT)
+$(OUTPUT): JNI.o SharedUtil.o ffmpeg_tpl.o Muxer.o Demuxer.o Transcoder.o
+	$(CCPP) -shared -Wl ffmpeg_tpl.o tpl.o JNI.o SharedUtil.o Demuxer.o Muxer.o Transcoder.o -lavcodec -lavformat -lavutil -lmp3lame -lx264 -lfaac -lz -lbz2 $(LDFLAGS) -o $(OUTPUT)
 
 JNI.o: JNI.cpp
 	$(CCPP) $(CFLAGS) JNI.cpp
@@ -28,6 +28,9 @@ tpl.o: tpl.c
 
 Demuxer.o: Demuxer.cpp
 	$(CCPP) $(CFLAGS) Demuxer.cpp
+	
+Muxer.o: Muxer.cpp
+	$(CCPP) $(CFLAGS) Muxer.cpp
 
 Transcoder.o: Transcoder.cpp
 	$(CCPP) $(CFLAGS) Transcoder.cpp

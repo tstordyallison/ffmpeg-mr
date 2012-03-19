@@ -32,7 +32,7 @@ void throw_new_exception(JNIEnv *env, const char* msg){
     env->ThrowNew(err_clazz, msg);
 }
 
-int gcdf(int a, int b)
+static int gcdf(int a, int b)
 { 
     if (b==0) return a;
     return gcdf(b, a % b);

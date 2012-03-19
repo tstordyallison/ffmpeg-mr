@@ -8,6 +8,9 @@ import java.util.List;
 import java.util.ListIterator;
 import java.util.concurrent.BlockingQueue;
 
+import org.joda.time.Period;
+import org.joda.time.format.PeriodFormat;
+
 import com.tstordyallison.ffmpegmr.util.FileUtils;
 import com.tstordyallison.ffmpegmr.util.Printer;
 
@@ -23,7 +26,6 @@ public class ChunkerThread extends Thread {
 		private List<ByteBuffer> 		streamHeaders 				= new ArrayList<ByteBuffer>(demuxer.getStreamCount()); 		
 		private List<List<DemuxPacket>> currentChunks				= new ArrayList<List<DemuxPacket>>(demuxer.getStreamCount()); 
 		private List<Integer> 			currentChunksSizes 			= new ArrayList<Integer>(demuxer.getStreamCount()); 			
-		private List<Integer> 			currentChunkIDCounters		= new ArrayList<Integer>(demuxer.getStreamCount()); 
 		private List<Integer> 			endMarkers 					= new ArrayList<Integer>(demuxer.getStreamCount()); 
 		private List<Long> 				chunkPoints 				= new LinkedList<Long>(); // Make me a better data structure.
 		
@@ -34,7 +36,6 @@ public class ChunkerThread extends Thread {
 				streamHeaders.add(ByteBuffer.wrap(demuxer.getStreamData(i)));
 				currentChunks.add(new LinkedList<DemuxPacket>()); // Linked list makes quite a difference.
 				currentChunksSizes.add(0);
-				currentChunkIDCounters.add(0);
 				endMarkers.add(-1);
 			}
 		}
@@ -61,7 +62,6 @@ public class ChunkerThread extends Thread {
 				return null;
 			
 			// Check the end markers.
-			// TODO: add logic for end markers that are in the middle of GOPs.
 			int endMarker = endMarkers.get(streamID); // This is exclusive of the end marker, e.g. the end marker is the start of the next chunk.
 			
 			if(endMarker == -1) // No where to split yet!
@@ -73,19 +73,29 @@ public class ChunkerThread extends Thread {
 			
 			// Build a new chunk ID.
 			ChunkID chunkID = new ChunkID();
-			chunkID.chunkNumber = currentChunkIDCounters.get(streamID);
 			chunkID.streamID = streamID;
+			chunkID.streamDuration = streamDuration;
 			chunkID.startTS = chunkBuffer.get(0).ts;
 			chunkID.tbDen =  chunkBuffer.get(0).tb_den;
 			chunkID.tbNum =  chunkBuffer.get(0).tb_num;
-			DemuxPacket lastPacket = chunkBuffer.get(endMarker-1);
-			chunkID.endTS = lastPacket.ts + lastPacket.duration;
+			if(endMarker == chunkBuffer.size()){
+				// This is just an estimate. The last packet in the GOP will probably not be the last PTS.
+				DemuxPacket lastPacket = chunkBuffer.get(endMarker-1);
+				chunkID.endTS = lastPacket.ts + lastPacket.duration; 
+			}
+			else
+				chunkID.endTS = chunkBuffer.get(endMarker).ts;
+			chunkID.chunkNumber = chunkID.getMillisecondsStartTs();
 			
 			if(endTS < chunkID.endTS){
 				endTS = chunkID.endTS;
 				endTSNum = chunkID.tbNum;
 				endTSDen = chunkID.tbDen;
 			}
+			
+			// Add this to our chunkPoints.
+			if(endMarker != chunkBuffer.size())
+				chunkPoints.add(chunkBuffer.get(endMarker).ts);
 			
 			// Find all of the output chunk points that apply to this chunk.
 			for(Long point : chunkPoints)
@@ -110,11 +120,7 @@ public class ChunkerThread extends Thread {
 			
 			// Store the left over counter and increment the chunk counter, invalidate the end marker.
 			currentChunksSizes.set(streamID, currentChunksSizes.get(streamID) - actualChunkSize);
-			currentChunkIDCounters.set(streamID, currentChunkIDCounters.get(streamID) + 1);
 			endMarkers.set(streamID, -1);
-			
-			// Add this to our chunkPoints.
-			chunkPoints.add(chunkID.endTS);
 			
 			// Return the new chunk (this also calls retain on the data so we dealloc correctly).
 			return new Chunk(chunkID, chunkData);
@@ -141,11 +147,6 @@ public class ChunkerThread extends Thread {
 									.subList(0, Math.min(
 											currentChunksSizes.size(), maxLen))
 							+ ", " : "")
-					+ (currentChunkIDCounters != null ? "\n\t\tcurrentChunkIDCounters="
-							+ currentChunkIDCounters.subList(0, Math.min(
-									currentChunkIDCounters.size(), maxLen))
-							+ ", "
-							: "")
 					+ (endMarkers != null ? "\n\t\tendMarkers="
 							+ endMarkers.subList(0,
 									Math.min(endMarkers.size(), maxLen)) : "")
@@ -163,7 +164,9 @@ public class ChunkerThread extends Thread {
 	
 	private Demuxer demuxer;
 	private ChunkBuffers chunkBuffers;
-
+	
+	private long streamDuration;
+	
 	public ChunkerThread(BlockingQueue<Chunk> chunkQ, File file, long blockSize) {
 		initDemuxer(chunkQ, file, blockSize);
 	}
@@ -183,9 +186,11 @@ public class ChunkerThread extends Thread {
 		this.chunkQ = chunkQ;
 		this.file = file;
 		this.blockSize = blockSize;
-		
-		demuxer = new Demuxer(this.file.getAbsolutePath());
-		chunkBuffers = new ChunkBuffers();
+		this.demuxer = new Demuxer(this.file.getAbsolutePath());
+		this.chunkBuffers = new ChunkBuffers();
+		this.streamDuration = this.demuxer.getDurationMs();
+		if(this.streamDuration > 0)
+			Printer.println("File duration: " + PeriodFormat.getDefault().print(new Period(this.streamDuration)));
 	}
 
 	@Override

@@ -90,7 +90,7 @@
 #endif
 #include <time.h>
 
-#include "cmdutils.h"
+#include "cmdutils.c"
 
 #include "libavutil/avassert.h"
 
@@ -1504,8 +1504,7 @@ static void do_video_stats(AVFormatContext *os, OutputStream *ost,
 }
 
 
-static void do_video_out(AVFormatContext *s, OutputStream *ost,
-                         InputStream *ist, AVFrame *in_picture)
+static void do_video_out(AVFormatContext *s, OutputStream *ost, InputStream *ist, AVFrame *in_picture)
 {
     int nb_frames, i, ret, format_video_sync;
     AVFrame *final_picture;
@@ -1513,13 +1512,14 @@ static void do_video_out(AVFormatContext *s, OutputStream *ost,
     double sync_ipts, delta;
     double duration = 0;
     int frame_size = 0;
-    float quality = same_quant ? in_picture->quality
-    : ost->st->codec->global_quality;
+    float quality = same_quant ? in_picture->quality : ost->st->codec->global_quality;
     
     enc = ost->st->codec;
     
     if (ist->st->start_time != AV_NOPTS_VALUE && ist->st->first_dts != AV_NOPTS_VALUE) {
+        
         duration = FFMAX(av_q2d(ist->st->time_base), av_q2d(ist->st->codec->time_base));
+        
         if(ist->st->avg_frame_rate.num)
             duration= FFMAX(duration, 1/av_q2d(ist->st->avg_frame_rate));
         
@@ -1534,7 +1534,7 @@ static void do_video_out(AVFormatContext *s, OutputStream *ost,
     
     format_video_sync = video_sync_method;
     if (format_video_sync == VSYNC_AUTO)
-        format_video_sync = (s->oformat->flags & AVFMT_VARIABLE_FPS) ? ((s->oformat->flags & AVFMT_NOTIMESTAMPS) ? VSYNC_PASSTHROUGH : VSYNC_VFR) : 1;
+        format_video_sync = (s->oformat->flags & AVFMT_VARIABLE_FPS) ? ((s->oformat->flags & AVFMT_NOTIMESTAMPS) ? VSYNC_PASSTHROUGH : VSYNC_VFR) : VSYNC_CFR;
     
     switch (format_video_sync) {
         case VSYNC_CFR:
@@ -2095,12 +2095,13 @@ static int transcode_video(InputStream *ist, AVPacket *pkt, int *got_output, int
     else
         avcodec_get_frame_defaults(ist->decoded_frame);
     decoded_frame = ist->decoded_frame;
+    
+    
     pkt->pts  = *pkt_pts;
     pkt->dts  = ist->dts;
     *pkt_pts  = AV_NOPTS_VALUE;
     
-    ret = avcodec_decode_video2(ist->st->codec,
-                                decoded_frame, got_output, pkt);
+    ret = avcodec_decode_video2(ist->st->codec, decoded_frame, got_output, pkt);
     if (ret < 0)
         return ret;
     
@@ -2108,7 +2109,7 @@ static int transcode_video(InputStream *ist, AVPacket *pkt, int *got_output, int
         /* no picture yet */
         return ret;
     }
-    
+
     best_effort_timestamp= av_opt_ptr(avcodec_get_frame_class(), decoded_frame, "best_effort_timestamp");
     if(*best_effort_timestamp != AV_NOPTS_VALUE)
         ist->next_pts = ist->pts = decoded_frame->pts = *best_effort_timestamp;
@@ -2240,6 +2241,8 @@ static int output_packet(InputStream *ist,
         avpkt = *pkt;
     }
     
+    // If we have a DTS value, store a rescaled version away in the input stream struct.
+    // If this is not video or it isn't being decoded, set the pts and next_pts to the dts as well.
     if (pkt->dts != AV_NOPTS_VALUE) {
         ist->next_dts = ist->dts = av_rescale_q(pkt->dts, ist->st->time_base, AV_TIME_BASE_Q);
         if (ist->st->codec->codec_type != AVMEDIA_TYPE_VIDEO || !ist->decoding_needed)
@@ -2271,10 +2274,8 @@ static int output_packet(InputStream *ist,
                 if (avpkt.duration) {
                     duration = av_rescale_q(avpkt.duration, ist->st->time_base, AV_TIME_BASE_Q);
                 } else if(ist->st->codec->time_base.num != 0 && ist->st->codec->time_base.den != 0) {
-                    int ticks= ist->st->parser ? ist->st->parser->repeat_pict+1 : ist->st->codec->ticks_per_frame;
-                    duration = ((int64_t)AV_TIME_BASE *
-                                ist->st->codec->time_base.num * ticks) /
-                    ist->st->codec->time_base.den;
+                    int ticks = ist->st->parser ? ist->st->parser->repeat_pict+1 : ist->st->codec->ticks_per_frame;
+                    duration = ((int64_t)AV_TIME_BASE * ist->st->codec->time_base.num * ticks) / ist->st->codec->time_base.den;
                 } else
                     duration = 0;
                 
@@ -3022,16 +3023,17 @@ static int transcode(OutputFile *output_files, int nb_output_files,
         ist = &input_streams[ist_index];
         if (ist->discard)
             goto discard_packet;
-        
-        if (pkt.dts != AV_NOPTS_VALUE)
-            pkt.dts += av_rescale_q(input_files[ist->file_index].ts_offset, AV_TIME_BASE_Q, ist->st->time_base);
-        if (pkt.pts != AV_NOPTS_VALUE)
-            pkt.pts += av_rescale_q(input_files[ist->file_index].ts_offset, AV_TIME_BASE_Q, ist->st->time_base);
-        
-        if (pkt.pts != AV_NOPTS_VALUE)
-            pkt.pts *= ist->ts_scale;
-        if (pkt.dts != AV_NOPTS_VALUE)
-            pkt.dts *= ist->ts_scale;
+      
+//        // Do some offset options that I dont care about.
+//        if (pkt.dts != AV_NOPTS_VALUE)
+//            pkt.dts += av_rescale_q(input_files[ist->file_index].ts_offset, AV_TIME_BASE_Q, ist->st->time_base);
+//        if (pkt.pts != AV_NOPTS_VALUE)
+//            pkt.pts += av_rescale_q(input_files[ist->file_index].ts_offset, AV_TIME_BASE_Q, ist->st->time_base);
+//        
+//        if (pkt.pts != AV_NOPTS_VALUE)
+//            pkt.pts *= ist->ts_scale;
+//        if (pkt.dts != AV_NOPTS_VALUE)
+//            pkt.dts *= ist->ts_scale;
         
         if (debug_ts) {
             av_log(NULL, AV_LOG_INFO, "demuxer -> ist_index:%d type:%s "
@@ -3043,42 +3045,43 @@ static int transcode(OutputFile *output_files, int nb_output_files,
                    input_files[ist->file_index].ts_offset);
         }
         
-        if (pkt.dts != AV_NOPTS_VALUE && ist->next_dts != AV_NOPTS_VALUE && !copy_ts) {
-            int64_t pkt_dts = av_rescale_q(pkt.dts, ist->st->time_base, AV_TIME_BASE_Q);
-            int64_t delta   = pkt_dts - ist->next_dts;
-            if (is->iformat->flags & AVFMT_TS_DISCONT) {
-                if(delta < -1LL*dts_delta_threshold*AV_TIME_BASE ||
-                   (delta > 1LL*dts_delta_threshold*AV_TIME_BASE &&
-                    ist->st->codec->codec_type != AVMEDIA_TYPE_SUBTITLE) ||
-                   pkt_dts+1<ist->pts){
-                    input_files[ist->file_index].ts_offset -= delta;
-                    av_log(NULL, AV_LOG_DEBUG,
-                           "timestamp discontinuity %"PRId64", new offset= %"PRId64"\n",
-                           delta, input_files[ist->file_index].ts_offset);
-                    pkt.dts-= av_rescale_q(delta, AV_TIME_BASE_Q, ist->st->time_base);
-                    if (pkt.pts != AV_NOPTS_VALUE)
-                        pkt.pts-= av_rescale_q(delta, AV_TIME_BASE_Q, ist->st->time_base);
-                }
-            } else {
-                if ( delta < -1LL*dts_error_threshold*AV_TIME_BASE ||
-                    (delta > 1LL*dts_error_threshold*AV_TIME_BASE && ist->st->codec->codec_type != AVMEDIA_TYPE_SUBTITLE) ||
-                    pkt_dts+1<ist->pts){
-                    av_log(NULL, AV_LOG_WARNING, "DTS %"PRId64", next:%"PRId64" st:%d invalid droping\n", pkt.dts, ist->next_dts, pkt.stream_index);
-                    pkt.dts = AV_NOPTS_VALUE;
-                }
-                if (pkt.pts != AV_NOPTS_VALUE){
-                    int64_t pkt_pts = av_rescale_q(pkt.pts, ist->st->time_base, AV_TIME_BASE_Q);
-                    delta   = pkt_pts - ist->next_dts;
-                    if ( delta < -1LL*dts_error_threshold*AV_TIME_BASE ||
-                        (delta > 1LL*dts_error_threshold*AV_TIME_BASE && ist->st->codec->codec_type != AVMEDIA_TYPE_SUBTITLE)) {
-                        av_log(NULL, AV_LOG_WARNING, "PTS %"PRId64", next:%"PRId64" invalid droping st:%d\n", pkt.pts, ist->next_dts, pkt.stream_index);
-                        pkt.pts = AV_NOPTS_VALUE;
-                    }
-                }
-            }
-        }
         
-        // fprintf(stderr,"read #%d.%d size=%d\n", ist->file_index, ist->st->index, pkt.size);
+//        // All this does is rescale the DTS/PTS values in the packet to AV_TIME_BASE and then warn about any packets that we have that are invalid.
+//        if (pkt.dts != AV_NOPTS_VALUE && ist->next_dts != AV_NOPTS_VALUE && !copy_ts) {
+//            int64_t pkt_dts = av_rescale_q(pkt.dts, ist->st->time_base, AV_TIME_BASE_Q);
+//            int64_t delta   = pkt_dts - ist->next_dts;
+//            if (is->iformat->flags & AVFMT_TS_DISCONT) {
+//                if(delta < -1LL*dts_delta_threshold*AV_TIME_BASE ||
+//                   (delta > 1LL*dts_delta_threshold*AV_TIME_BASE &&
+//                    ist->st->codec->codec_type != AVMEDIA_TYPE_SUBTITLE) ||
+//                   pkt_dts+1<ist->pts){
+//                    input_files[ist->file_index].ts_offset -= delta;
+//                    av_log(NULL, AV_LOG_DEBUG,
+//                           "timestamp discontinuity %"PRId64", new offset= %"PRId64"\n",
+//                           delta, input_files[ist->file_index].ts_offset);
+//                    pkt.dts-= av_rescale_q(delta, AV_TIME_BASE_Q, ist->st->time_base);
+//                    if (pkt.pts != AV_NOPTS_VALUE)
+//                        pkt.pts-= av_rescale_q(delta, AV_TIME_BASE_Q, ist->st->time_base);
+//                }
+//            } else {
+//                if ( delta < -1LL*dts_error_threshold*AV_TIME_BASE ||
+//                    (delta > 1LL*dts_error_threshold*AV_TIME_BASE && ist->st->codec->codec_type != AVMEDIA_TYPE_SUBTITLE) ||
+//                    pkt_dts+1<ist->pts){
+//                    av_log(NULL, AV_LOG_WARNING, "DTS %"PRId64", next:%"PRId64" st:%d invalid droping\n", pkt.dts, ist->next_dts, pkt.stream_index);
+//                    pkt.dts = AV_NOPTS_VALUE;
+//                }
+//                if (pkt.pts != AV_NOPTS_VALUE){
+//                    int64_t pkt_pts = av_rescale_q(pkt.pts, ist->st->time_base, AV_TIME_BASE_Q);
+//                    delta   = pkt_pts - ist->next_dts;
+//                    if ( delta < -1LL*dts_error_threshold*AV_TIME_BASE ||
+//                        (delta > 1LL*dts_error_threshold*AV_TIME_BASE && ist->st->codec->codec_type != AVMEDIA_TYPE_SUBTITLE)) {
+//                        av_log(NULL, AV_LOG_WARNING, "PTS %"PRId64", next:%"PRId64" invalid droping st:%d\n", pkt.pts, ist->next_dts, pkt.stream_index);
+//                        pkt.pts = AV_NOPTS_VALUE;
+//                    }
+//                }
+//            }
+//        }
+        
         if (output_packet(ist, output_streams, nb_output_streams, &pkt) < 0) {
             
             av_log(NULL, AV_LOG_ERROR, "Error while decoding stream #%d:%d\n",

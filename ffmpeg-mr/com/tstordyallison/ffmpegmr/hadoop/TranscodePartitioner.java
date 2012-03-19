@@ -9,8 +9,8 @@ public class TranscodePartitioner extends Partitioner<LongWritable, Chunk> {
 
 	@Override
 	public int getPartition(LongWritable ts, Chunk chunk, int numPartitions) {
-		//int partitionSize = ts/numPartitions;
-		return 0;
+		long partitionSize = chunk.getChunkID().streamDuration/numPartitions;
+		return (int)(ts.get() / partitionSize);
 	}
 
 }

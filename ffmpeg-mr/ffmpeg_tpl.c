@@ -229,6 +229,52 @@ int write_avstream_chunk_to_memory(AVStream *stream, uint8_t **unallocd_buffer, 
     return ret;
 }
 
+int write_avstream_chunk_as_cc_to_memory(AVCodecContext *codec, AVRational stream_time_base, AVRational stream_frame_rate, uint8_t **unallocd_buffer, int *size){
+    tpl_node *tn;
+    tpl_bin data;
+    int ret;
+    
+    data.sz = codec->extradata_size; 
+    data.addr = codec->extradata;
+    
+    tn = tpl_map(AVSTREAM_TPL_FORMAT,
+                 &(stream_time_base.num),
+                 &(stream_time_base.den),
+                 &(stream_frame_rate.num),
+                 &(stream_frame_rate.den),
+                 &(codec->sample_aspect_ratio.num),
+                 &(codec->sample_aspect_ratio.den),
+                 &(codec->bits_per_raw_sample),
+                 &(codec->chroma_sample_location),
+                 &(codec->codec_id),
+                 &(codec->codec_type),
+                 &(codec->bit_rate),
+                 &(codec->time_base.num),
+                 &(codec->time_base.den),
+                 &(codec->channel_layout),
+                 &(codec->sample_rate),
+                 &(codec->channels),
+                 &(codec->sample_fmt),
+                 &(codec->frame_size),
+                 &(codec->audio_service_type),
+                 &(codec->block_align),
+                 &(codec->pix_fmt),
+                 &(codec->width),
+                 &(codec->height),
+                 &(codec->has_b_frames),
+                 &(codec->sample_aspect_ratio.num),
+                 &(codec->sample_aspect_ratio.den),
+                 &(codec->ticks_per_frame),
+                 &data);
+    
+    tpl_pack(tn,0);
+    ret = tpl_dump(tn, TPL_MEM, unallocd_buffer, size);
+    tpl_free(tn);
+
+    return ret;
+
+}
+
 int write_avstream_chunk_to_fd(AVStream *stream, int fd){
     uint8_t *buffer;
     int size, ret;
@@ -237,11 +283,6 @@ int write_avstream_chunk_to_fd(AVStream *stream, int fd){
         write(fd, buffer, size);
     free(buffer);
     return ret;
-}
-
-int write_avstream_chunk_as_cc_to_memory(AVCodecContext *codec_ref, AVRational stream_time_base, AVRational stream_frame_rate, uint8_t **unallocd_buffer, int *size){
-    
-    return 0;
 }
 
 // This is the format definition for the AVPackets that we store.

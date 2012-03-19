@@ -1,6 +1,7 @@
 package com.tstordyallison.ffmpegmr.emr;
 
 import java.io.File;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
@@ -40,8 +41,6 @@ public class JobLoader {
     private static final String INSTANCE_TYPE = InstanceType.C1Xlarge.toString();
     private static final int    NUMBER_OF_CORES = 8;
     
-    private static final String TARGET_JOBFLOWID = "j-28PMJE1NB9A61";
-    
     private static final UUID   RANDOM_UUID = UUID.randomUUID();
     private static final String FLOW_NAME = "ffmpeg-mr-" + RANDOM_UUID.toString();
     private static final String BUCKET_NAME = "ffmpeg-mr";
@@ -52,14 +51,16 @@ public class JobLoader {
     private static final String EMR_ENDPOINT = "https://elasticmapreduce." + REGION_ID + ".amazonaws.com";
     private static final String MASTER_INSTANCE_TYPE = InstanceType.M1Small.toString();
     
-    private static final boolean USE_NEW_CLUSTER = false;
+    private static final boolean USE_NEW_CLUSTER = true;
     private static final boolean DEBUGGING = true;
     private static final boolean STAY_ALIVE = true;
+    //private static final boolean REBUILD = true;
 
     // Shutter.Island.2010.720p.BluRay.x264.DTS-WiKi.m4v
     
-    private static final String[] JOB_ARGS = new String[] { "s3://ffmpeg-mr/movies/Test.mkv", 
-    														"s3://ffmpeg-mr/output/" + FLOW_NAME};
+    private static final String[][] JOB_ARGS = {new String[] { "s3://ffmpeg-mr/movies/Test.mkv", "s3://ffmpeg-mr/output/" + FLOW_NAME}, 
+    											new String[] { "s3://ffmpeg-mr/movies/Test.avi", "s3://ffmpeg-mr/output/" + FLOW_NAME}, 
+												new String[] { "s3://ffmpeg-mr/movies/Test.mp4", "s3://ffmpeg-mr/output/" + FLOW_NAME}};
     private static final List<JobFlowExecutionState> DONE_STATES = Arrays
         .asList(new JobFlowExecutionState[] { JobFlowExecutionState.COMPLETED,
                                               JobFlowExecutionState.FAILED,
@@ -92,12 +93,26 @@ public class JobLoader {
         	System.out.println("Upload of jar file complete.");
         	
             // Configure the Hadoop jar to use
-            HadoopJarStepConfig jarConfig = new HadoopJarStepConfig(S3N_HADOOP_JAR);
-            jarConfig.setArgs(Arrays.asList(JOB_ARGS));           
-            StepConfig stepConfig = new StepConfig("Transcode Job", jarConfig);
-            if(STAY_ALIVE)
-            	stepConfig.setActionOnFailure(ActionOnFailure.CANCEL_AND_WAIT);
- 
+        	List<StepConfig> steps = new ArrayList<StepConfig>();
+        	
+        	if(DEBUGGING)	
+            {
+               HadoopJarStepConfig debugJarConfig = new HadoopJarStepConfig("s3://"+ REGION_ID + ".elasticmapreduce/libs/script-runner/script-runner.jar");
+               debugJarConfig.setArgs(Arrays.asList(new String[]{"s3://"+ REGION_ID + ".elasticmapreduce/libs/state-pusher/0.1/fetch"}));           
+               StepConfig debugInitConfig = new StepConfig("Initialse debugger...", debugJarConfig );
+               debugInitConfig.setActionOnFailure(ActionOnFailure.CANCEL_AND_WAIT);
+               steps.add(debugInitConfig);
+            }
+        	
+        	for(String[] jobArgs : JOB_ARGS){
+        		HadoopJarStepConfig jarConfig = new HadoopJarStepConfig(S3N_HADOOP_JAR);
+                jarConfig.setArgs(Arrays.asList(jobArgs));           
+                StepConfig stepConfig = new StepConfig("Transcode Job", jarConfig);
+                if(STAY_ALIVE)
+                	stepConfig.setActionOnFailure(ActionOnFailure.CANCEL_AND_WAIT);
+                steps.add(stepConfig);
+        	}
+            
         	// Check to see if we have a spare cluster (this works on the assumption that I'm the only one using this!)
             if(!USE_NEW_CLUSTER)
             		System.out.println("Checking for spare cluster...");
@@ -109,7 +124,7 @@ public class JobLoader {
             {
             	System.out.println("Using existing cluster.");
             	jobFlowID = flows.get(0).getJobFlowId();
-            	AddJobFlowStepsRequest request = new AddJobFlowStepsRequest(jobFlowID, Arrays.asList(new StepConfig[] { stepConfig }));
+            	AddJobFlowStepsRequest request = new AddJobFlowStepsRequest(jobFlowID, steps );
             	emr.addJobFlowSteps(request);
             	Thread.sleep(5000);
             }
@@ -159,17 +174,7 @@ public class JobLoader {
                 request.setBootstrapActions(Arrays.asList(new BootstrapActionConfig[]{ bsMultiSupport, bsCoreNumber }));
                 request.setAmiVersion(AMI_VERSION);
                 request.setLogUri(S3N_LOG_URI);
-                
-                if(DEBUGGING)	
-                {
-                   HadoopJarStepConfig debugJarConfig = new HadoopJarStepConfig("s3://"+ REGION_ID + ".elasticmapreduce/libs/script-runner/script-runner.jar");
-                   debugJarConfig.setArgs(Arrays.asList(new String[]{"s3://"+ REGION_ID + ".elasticmapreduce/libs/state-pusher/0.1/fetch"}));           
-                   StepConfig debugInitConfig = new StepConfig("Initialse debugger...", debugJarConfig );
-                   debugInitConfig.setActionOnFailure(ActionOnFailure.CANCEL_AND_WAIT);
-                   request.setSteps(Arrays.asList(new StepConfig[] { debugInitConfig, stepConfig }));
-                }
-                else
-                	request.setSteps(Arrays.asList(new StepConfig[] { stepConfig }));
+                request.setSteps(steps);
 
                 RunJobFlowResult result = emr.runJobFlow(request);
                 jobFlowID = result.getJobFlowId();

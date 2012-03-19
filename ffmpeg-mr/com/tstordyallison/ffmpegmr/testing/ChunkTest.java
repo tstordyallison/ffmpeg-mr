@@ -24,7 +24,7 @@ public class ChunkTest {
 		Printer.ENABLED = true;
 		WriterThread.FILE_PER_CHUNK = false;
 		WriterThread.PRINT_WRITE = true;
-		WriterThread.BLOCK_SIZE *= 2; // 32Mb.
+		WriterThread.BLOCK_SIZE *= 1; // 32Mb.
 		
 		if(args.length == 2)
 		{

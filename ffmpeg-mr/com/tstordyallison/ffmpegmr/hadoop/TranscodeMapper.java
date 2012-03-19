@@ -58,7 +58,7 @@ public class TranscodeMapper extends Mapper<ChunkID,ChunkData,LongWritable,Chunk
     		if(pkt.splitPoint)
     		{
     			// Empty the current buffer before adding this new packet.
-    			emptyPacketBuffer(header, currentPackets, context);
+    			emptyPacketBuffer(header, key, currentPackets, context);
     		}
     		
     		// Add the new packet
@@ -66,7 +66,7 @@ public class TranscodeMapper extends Mapper<ChunkID,ChunkData,LongWritable,Chunk
     	}
     	
     	// Empty anything left in the buffer.
-    	emptyPacketBuffer(header, currentPackets, context);
+    	emptyPacketBuffer(header, key, currentPackets, context);
     	
     	context.getCounter(ProgressCounter.COMBINED_PROGRESS).increment(pkt_counter % 100);
     	
@@ -79,7 +79,7 @@ public class TranscodeMapper extends Mapper<ChunkID,ChunkData,LongWritable,Chunk
     	Printer.println("Mapper complete, time taken: " + stopwatch.getElapsedTime() + " ms. ");
     }
 	
-	private void emptyPacketBuffer(byte[] header, List<DemuxPacket> currentPackets, Context context)
+	private void emptyPacketBuffer(byte[] header, ChunkID key, List<DemuxPacket> currentPackets, Context context)
 	{
 		if(currentPackets.size() > 0){
 			
@@ -91,13 +91,36 @@ public class TranscodeMapper extends Mapper<ChunkID,ChunkData,LongWritable,Chunk
 			
 			// Build ChunkID
 			ChunkID chunkID = new ChunkID();
-			chunkID.chunkNumber = -1;
-			chunkID.streamID = currentPackets.get(0).streamID;
+			if(key.startTS == currentPackets.get(0).ts)
+			{
+				// This is the first chunk/a normal chunk.
+				chunkID.chunkNumber = key.getMillisecondsStartTs();
+			}
+			else if(key.outputChunkPoints.size() > 0)
+			{
+				// Take this chunk point off of the top of the list.
+				long chunkPoint = key.outputChunkPoints.get(0);
+				key.outputChunkPoints.remove(0);
+				 
+				chunkID.chunkNumber = ChunkID.toMs(chunkPoint, key.tbNum, key.tbDen);
+				
+				if(ChunkID.toMs(currentPackets.get(0).ts, currentPackets.get(0).tb_num, currentPackets.get(0).tb_den) 
+						!= ChunkID.toMs(chunkPoint, key.tbNum, key.tbDen))
+				{
+					Printer.println("WARNING: Output TS was not the desired chunk point.");
+				}
+			}
+			else
+			{
+				// This shouldnt happen.
+				chunkID.chunkNumber = key.getMillisecondsStartTs();
+			}
+			chunkID.streamID = key.streamID;
 			chunkID.startTS = currentPackets.get(0).ts;
 			chunkID.endTS = currentPackets.get(currentPackets.size()-1).ts + currentPackets.get(currentPackets.size()-1).duration;
-			chunkID.streamID = currentPackets.get(0).streamID;
 			chunkID.tbNum = currentPackets.get(0).tb_num;
 			chunkID.tbDen = currentPackets.get(0).tb_den;
+			chunkID.streamDuration = key.streamDuration;
 			
 			// Build value
 			ChunkData chunkData = new ChunkData(header, currentPackets);
@@ -105,7 +128,7 @@ public class TranscodeMapper extends Mapper<ChunkID,ChunkData,LongWritable,Chunk
 			// Output value
 			try {
 				Chunk chunk = new Chunk(chunkID, chunkData);
-				context.write(new LongWritable(chunkID.getMillisecondsStartTs()), chunk);
+				context.write(new LongWritable(chunkID.chunkNumber), chunk);
 				Printer.println("Map output: " + chunk.toString());
 			} catch (IOException e) {
 				System.err.println("IO Error writing to map output.");
@@ -117,7 +140,6 @@ public class TranscodeMapper extends Mapper<ChunkID,ChunkData,LongWritable,Chunk
 			
 			// Clear this buffer.
 			currentPackets.clear();
-		
 		}
 	}
 }

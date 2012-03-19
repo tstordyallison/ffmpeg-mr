@@ -96,4 +96,28 @@ public class ChunkData implements Writable {
 				+ "\n]";
 	}
 
+	@Override
+	public int hashCode() {
+		final int prime = 31;
+		int result = 1;
+		result = prime * result + packet_count;
+		result = prime * result + Arrays.hashCode(rawData);
+		return result;
+	}
+	
+	@Override
+	public boolean equals(Object obj) {
+		if (this == obj)
+			return true;
+		if (obj == null)
+			return false;
+		if (!(obj instanceof ChunkData))
+			return false;
+		ChunkData other = (ChunkData) obj;
+		if (packet_count != other.packet_count)
+			return false;
+		if (!Arrays.equals(rawData, other.rawData))
+			return false;
+		return true;
+	}
 }

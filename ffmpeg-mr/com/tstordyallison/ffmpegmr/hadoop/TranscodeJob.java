@@ -144,8 +144,7 @@ public class TranscodeJob {
 		
 	    job.setMapOutputKeyClass(LongWritable.class);
 	    job.setMapOutputValueClass(Chunk.class);
-	    
-		job.setNumReduceTasks(3);
+	   
 		job.setReducerClass(RemuxReducer.class);
 		
 	    job.setOutputFormatClass(SequenceFileOutputFormat.class);
