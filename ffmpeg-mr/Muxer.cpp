@@ -3,7 +3,9 @@
 #include "SharedUtil.h"
 
 #define DEBUG_PRINT 1
-#define DEBUG_PRINT_CRAZY 1
+#define DEBUG_PRINT_CRAZY 0
+
+#define INT32_MAX 2147483647
 
 extern "C" {
     #include "ffmpeg_tpl.h"
@@ -120,6 +122,7 @@ JNIEXPORT jbyteArray JNICALL Java_com_tstordyallison_ffmpegmr_Remuxer_muxChunks(
     TPLImageRef **image_lists = (TPLImageRef **)malloc(sizeof(TPLImageRef *) * nb_chunks);
     size_t *image_sizes = (size_t *)malloc(sizeof(size_t) * nb_chunks);
     size_t *image_cursors = (size_t *)malloc(sizeof(size_t) * nb_chunks);
+    AVRational *stream_input_tbs = (AVRational *)malloc(sizeof(AVRational) * nb_chunks);
     
     // For each of the streams, use tpl_gather to get a list of the images they contain.
     for(int i = 0; i < nb_chunks; i++){
@@ -130,7 +133,7 @@ JNIEXPORT jbyteArray JNICALL Java_com_tstordyallison_ffmpegmr_Remuxer_muxChunks(
     // ------------------------------------------------------------------------------------------
     
     AVIOContext *output_io_context = NULL; avio_open_dyn_buf(&output_io_context);
-    AVOutputFormat *output_format = av_guess_format("mkv", "filename.mkv", NULL);
+    AVOutputFormat *output_format = av_guess_format("matroska", "filename.mkv", NULL);
     AVFormatContext *output_format_context = NULL;
     
     // Create an output file AVFormatContext and open the file for writing to the filesystem.
@@ -150,25 +153,18 @@ JNIEXPORT jbyteArray JNICALL Java_com_tstordyallison_ffmpegmr_Remuxer_muxChunks(
         // Read in the stream from the chunk.
         AVStream *stream;
         TPLImageRef stream_header = image_lists[i][image_cursors[i]]; image_cursors[i] += 1;
-        read_avstream_chunk_from_memory(stream_header.data, stream_header.size, output_format_context, &stream);
-        
-        if(DEBUG_PRINT)
-            dump_buffer(stream->codec->extradata, stream->codec->extradata_size);
-        
-        // Open the codec. Do we need to do this? 
-        AVCodec *codec;
-        if (!(codec = avcodec_find_decoder(stream->codec->codec_id))) {
-            fprintf(stderr, "Unsupported codec with id %d for input stream %d\n", stream->codec->codec_id, stream->index);
-        } else if (avcodec_open2(stream->codec, codec, NULL) < 0) {
-            fprintf(stderr, "Error while opening codec for input stream %d\n", stream->index);
-        }
-        
-        if(DEBUG_PRINT)
+        if((read_avstream_chunk_from_memory(stream_header.data, stream_header.size, output_format_context, &stream) < 0))
         {
-            fprintf(stderr, "Post init CTB: %d/%d (1/=%2.2f)\n", stream->codec->time_base.num, stream->codec->time_base.den, (float)stream->codec->time_base.den/stream->codec->time_base.num);
-            fprintf(stderr, "Post init STB: %d/%d (1/=%2.2f)\n", stream->time_base.num, stream->time_base.den, (float)stream->time_base.den/stream->time_base.num);
-            fprintf(stderr, "Post init RTB: %d/%d (1/=%2.2f)\n", stream->time_base.den, stream->r_frame_rate.num, (float)stream->r_frame_rate.num/stream->r_frame_rate.den);
-            fprintf(stderr, "Post init TPF: %d\n", stream->codec->ticks_per_frame);
+            fprintf(stderr, "Failed to read AVStream chunk.");
+            return NULL;
+        };
+        
+        stream_input_tbs[i] = stream->time_base; // This is a hack, as this value gets lost after we call avformat_write_header.
+        
+        if(DEBUG_PRINT_CRAZY)
+        {
+            fprintf(stderr, "Post init STB (%d): %d/%d (1/=%2.2f)\n", i, stream->time_base.num, stream->time_base.den, (float)stream->time_base.den/stream->time_base.num);
+            fprintf(stderr, "Post init RTB (%d): %d/%d (1/=%2.2f)\n", i, stream->r_frame_rate.den, stream->r_frame_rate.num, (float)stream->r_frame_rate.num/stream->r_frame_rate.den);
         }
     }
     
@@ -180,37 +176,57 @@ JNIEXPORT jbyteArray JNICALL Java_com_tstordyallison_ffmpegmr_Remuxer_muxChunks(
     }
     
     // Go through and read from each stream over and over, taking the packets and av_interleaved_write_frame to the correct stream in the output to merge the files again.
-    AVPacket pkt;
+    AVPacket *pkt = NULL;
     int chunk = 0;
-    av_init_packet(&pkt);
     int read_rets[nb_chunks];
     
     // Init the returns.
     for (int i = 0; i < nb_chunks; i++) {
-       read_rets[i] = 0;
+       read_rets[i] = INT32_MAX;
     }
     
     for(;;)
     {
+        // Init the packet.
+        pkt = (AVPacket *)malloc(sizeof(AVPacket));
+        av_init_packet(pkt);
+        
+        
         // Read in some data.
-        if(!read_rets[chunk]){
-            read_rets[chunk] = read_avpacket(image_lists[chunk], image_sizes[chunk], &image_cursors[chunk], &pkt);
+        if(read_rets[chunk] > 0){
+            read_rets[chunk] = read_avpacket(image_lists[chunk], image_sizes[chunk], &image_cursors[chunk], pkt);
         }
         
         // If we got something, process it.
-        if(!read_rets[chunk])
+        if(read_rets[chunk] > 0)
         {
+            // Check the stream index isn't stupid.
+            if(pkt->stream_index > output_format_context->nb_streams-1){
+                fprintf(stderr, "Packet for stream %d (dts=%lld, pts=%lld, size=%d, dyn_pos=%lld)\n", pkt->stream_index, pkt->dts, pkt->pts, pkt->size, output_io_context->pos);
+                fprintf(stderr, "Input stream index error (%d>%d). Is this a complete TS grouping?\n", pkt->stream_index, output_format_context->nb_streams-1);
+                throw_new_exception(env, "Input stream index error.");
+                return NULL;
+            }
+            
+            // Set the pts and dts.
+            if (pkt->pts != AV_NOPTS_VALUE)
+                pkt->pts = av_rescale_q(pkt->pts, stream_input_tbs[chunk], output_format_context->streams[chunk]->time_base);
+            if (pkt->dts != AV_NOPTS_VALUE)
+                pkt->dts = av_rescale_q(pkt->dts, stream_input_tbs[chunk], output_format_context->streams[chunk]->time_base);
+            if (pkt->duration != AV_NOPTS_VALUE)
+                pkt->duration = av_rescale_q(pkt->duration, stream_input_tbs[chunk], output_format_context->streams[chunk]->time_base);
+            
             // For the stream we have a packet for, write out the contents to the corresponding stream output file.
             if(DEBUG_PRINT_CRAZY){
-                printf("Writing packet to merge for stream %d (dts=%lld, pts=%lld, size=%d)\n", pkt.stream_index, pkt.dts, pkt.pts, pkt.size);
+                fprintf(stderr,"Writing packet for stream %d (dts=%lld, pts=%lld, size=%d, dyn_pos=%lld)\n", pkt->stream_index, pkt->dts, pkt->pts, pkt->size, output_io_context->pos);
             }
             
-            int ret = av_interleaved_write_frame(output_format_context, &pkt);
+            int ret = av_interleaved_write_frame(output_format_context, pkt);
+            av_free_packet(pkt);
             
             if(DEBUG_PRINT_CRAZY && ret != 0){
-                printf("Frame written: ret=%d\n", ret);
+                 fprintf(stderr,"Error writing frame (skippped): ret=%d\n", ret);
             }
-            
         }
         
         // Increment the chunk
@@ -222,7 +238,7 @@ JNIEXPORT jbyteArray JNICALL Java_com_tstordyallison_ffmpegmr_Remuxer_muxChunks(
         // Break if all of the fds are empty.
         int empty_count = 0;
         for (int i = 0; i < nb_chunks; i++) {
-            if(read_rets[i] == -1)
+            if(read_rets[i] == 0)
                 empty_count++;
         }
         
@@ -236,27 +252,30 @@ JNIEXPORT jbyteArray JNICALL Java_com_tstordyallison_ffmpegmr_Remuxer_muxChunks(
     
     // Store the output.
     uint8_t *output_data;
-    size_t output_data_size = avio_close_dyn_buf(output_io_context, &output_data);
+    size_t output_data_size = avio_close_dyn_buf(output_io_context, &output_data) - FF_INPUT_BUFFER_PADDING_SIZE;
+    
+    if(DEBUG_PRINT){
+        fprintf(stderr, "Final output chunk size: %lu bytes\n", output_data_size);
+    }
     
     // Free up stuff.
     avformat_free_context(output_format_context);
     
     // ------------------------------------------------------------------------------------------
   
-    // TODO: free up the TPL image list
-    
     // Free up all the state.
+    
     for(int i = 0; i < nb_chunks; i++)
     {
-        free(data_chunks[i]);
-        data_chunks[i] = NULL;
+        free(image_lists[i]); image_lists[i] = NULL;
+        free(data_chunks[i]); data_chunks[i] = NULL;
     }
     free(data_chunks_size);
     
     // Return the new data.
     jbyteArray dataArray = env->NewByteArray(output_data_size);
     env->SetByteArrayRegion(dataArray, 0, output_data_size, (jbyte *)output_data);
-    free(output_data);
+    av_free(output_data);
     
     return dataArray;
 };

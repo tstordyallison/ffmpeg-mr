@@ -1,6 +1,7 @@
 package com.tstordyallison.ffmpegmr.testing;
 
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -48,25 +49,18 @@ public class MuxTest {
 			if(!args[0].startsWith("file://"))
 				args[0] = "file://" + args[0];
 			
-			if(!args[1].startsWith("file://"))
-				args[1] = "file://" + args[1];
-			
 			runReducer(args[0], args[1]);
 		}
 		else
 		{
-			runReducer("file:///Users/tom/Code/fyp/example-videos/Test.mp4.mapped.seq", "file:///Users/tom/Code/fyp/example-videos/Test.mp4.output.seq");
-			//runReducer("file:///Users/tom/Code/fyp/example-videos/Test.mkv.mapped.seq", "file:///Users/tom/Code/fyp/example-videos/Test.mkv.output.seq");
-			//runReducer("file:///Users/tom/Code/fyp/example-videos/Test.avi.mapped.seq", "file:///Users/tom/Code/fyp/example-videos/Test.avi.output.seq");
+			//runReducer("file:///Users/tom/Code/fyp/example-videos/Test.mp4.mapped.seq", "/Users/tom/Code/fyp/example-videos/Test.mp4.output.seq");
+			//runReducer("file:///Users/tom/Code/fyp/example-videos/TestMultiStream.m4v.mapped.seq", "file:///Users/tom/Code/fyp/example-videos/Output/TestMultiStream.m4v.mkv");
+			//runReducer("file:///Users/tom/Code/fyp/example-videos/Test.wmv.mapped.seq", "/Users/tom/Code/fyp/example-videos/Output/Test.wmv.mkv");
+			runReducer("file:///Users/tom/Code/fyp/example-videos/Test2.avi.mapped.seq", "/Users/tom/Code/fyp/downloaded-output/Test.avi.mkv/Test.avi.mkv");
 		}
 	}
 	
-	public static void runReducer(File input, File output) throws InstantiationException, IllegalAccessException, IOException, InterruptedException
-	{
-		runReducer("file://" + input.getAbsolutePath(), "file://" + output.getAbsolutePath());
-	}
-	
-	public static void runReducer(String inputUri, String outputUri) throws InstantiationException, IllegalAccessException, IOException, InterruptedException
+	public static void runReducer(String inputUri, String outputPrefix) throws InstantiationException, IllegalAccessException, IOException, InterruptedException
 	{
 		
 		Printer.println("Reducing " + inputUri + "...");
@@ -105,13 +99,18 @@ public class MuxTest {
 			driver.setInputValues(groupedChunks.get(inputKey));
 			
 			//Printer.println("Running reducer for: " + groupedChunks.get(inputKey).toString());
-			
 			List<Pair<LongWritable, BytesWritable>> outputs = driver.run();
-			for(Pair<LongWritable, BytesWritable> output : outputs)
-				Printer.println("Reduce output: ts=" + output.getFirst().get() + ", size=" + FileUtils.humanReadableByteCount(output.getSecond().getLength(), false));
+			for(Pair<LongWritable, BytesWritable> output : outputs){
+				Printer.println("Reduce output: ts=" + output.getFirst().get() + ", size=" + FileUtils.humanReadableByteCount(output.getSecond().getLength(), false) + "(" + output.getSecond().getLength() + " bytes)");
+				
+				File outputFile = new File(outputPrefix + "."  + output.getFirst().get());
+				FileOutputStream outputStream = new FileOutputStream(outputFile);
+				outputStream.write(output.getSecond().getBytes(), 0, output.getSecond().getLength()-1);
+				outputStream.close();
+			}
 		}
 		
-		Printer.println("Sucessfully ran reduce test for " + outputUri + ".");
+		Printer.println("Sucessfully ran reduce test for " + inputUri + ".");
 		
 	}
 

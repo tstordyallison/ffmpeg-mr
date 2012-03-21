@@ -17,14 +17,15 @@
  We don't store any of the transient information about the stream - this is not what we are bothered about.
  This takes most of its def. from the copy_stream method found in ffmpeg.c
 */
-#define AVSTREAM_TPL_FORMAT "iiiiiiiiiiiiiIiiiiiiiiiiiiiB"
+#define AVSTREAM_TPL_FORMAT "iiiiiiiiiiiiiiIiiiiiiiiiiiiiB"
 /*
 ----- STREAM ------
  ii =   AVRational time_base
  ii =   AVRational frame_rate
  ii =   AVRational sample_aspect_ratio
 ----- CODEC  ------
- i  =   int bits_per_raw_sample;
+ i  =   flags;
+ i  =   bits_per_raw_sample
  i  =   enum AVChromaLocation chroma_sample_location;
  i  =   enum CodecID codec_id;
  i  =   enum AVMediaType codec_type;
@@ -46,12 +47,11 @@
  B  =   uint8_t *extradata/int extradata_size; (as a byte stream)
  */
 
-int read_avstream_chunk_as_cc_from_memory(uint8_t *buf, size_t buf_size, AVCodecContext **codec_ref, AVRational *stream_time_base, AVRational *stream_frame_rate){
+int read_avstream_chunk_as_cc_from_memory(uint8_t *buf, size_t buf_size, AVCodecContext **codec_ref, AVRational *stream_time_base, AVRational *stream_frame_rate, AVRational *stream_aspect_ratio){
     tpl_node *tn;
     tpl_bin data;
     int ret;
     AVCodecContext *codec;
-    int dummy;
     
     if(*codec_ref == NULL){
         *codec_ref = avcodec_alloc_context3(NULL);
@@ -64,8 +64,9 @@ int read_avstream_chunk_as_cc_from_memory(uint8_t *buf, size_t buf_size, AVCodec
                  &(stream_time_base->den),
                  &(stream_frame_rate->num),
                  &(stream_frame_rate->den),
-                 &(dummy),
-                 &(dummy),
+                 &(stream_aspect_ratio->num),
+                 &(stream_aspect_ratio->den),
+                 &(codec->flags),
                  &(codec->bits_per_raw_sample),
                  &(codec->chroma_sample_location),
                  &(codec->codec_id),
@@ -108,8 +109,72 @@ int read_avstream_chunk_as_cc_from_memory(uint8_t *buf, size_t buf_size, AVCodec
     return 0;
 }
 
-int read_avstream_chunk_from_memory(uint8_t *buf, int buf_size, AVFormatContext *os, AVStream **stream){
-    return -1;
+int read_avstream_chunk_from_memory(uint8_t *buf, int buf_size, AVFormatContext *os, AVStream **new_stream){
+    AVStream *stream;
+    tpl_node *tn;
+    tpl_bin data;
+    int ret;
+    
+    // TODO: replace with avformat_new_stream()
+    *new_stream = av_new_stream(os, 0);
+    if (!*new_stream) {
+        fprintf(stderr, "Could not alloc stream\n");
+        return -1;
+    }
+    
+    stream = *new_stream;
+    
+    tn = tpl_map(AVSTREAM_TPL_FORMAT,
+                 &(stream->time_base.num),
+                 &(stream->time_base.den),
+                 &(stream->r_frame_rate.num),
+                 &(stream->r_frame_rate.den),
+                 &(stream->sample_aspect_ratio.num),
+                 &(stream->sample_aspect_ratio.den),
+                 &(stream->codec->flags),
+                 &(stream->codec->bits_per_raw_sample),
+                 &(stream->codec->chroma_sample_location),
+                 &(stream->codec->codec_id),
+                 &(stream->codec->codec_type),
+                 &(stream->codec->bit_rate),
+                 &(stream->codec->time_base.num),
+                 &(stream->codec->time_base.den),
+                 &(stream->codec->channel_layout),
+                 &(stream->codec->sample_rate),
+                 &(stream->codec->channels),
+                 &(stream->codec->sample_fmt),
+                 &(stream->codec->frame_size),
+                 &(stream->codec->audio_service_type),
+                 &(stream->codec->block_align),
+                 &(stream->codec->pix_fmt),
+                 &(stream->codec->width),
+                 &(stream->codec->height),
+                 &(stream->codec->has_b_frames),
+                 &(stream->codec->sample_aspect_ratio.num),
+                 &(stream->codec->sample_aspect_ratio.den),
+                 &(stream->codec->ticks_per_frame),
+                 &data);
+    
+    ret = tpl_load(tn, TPL_MEM|TPL_EXCESS_OK, buf, buf_size);
+    if(ret < 0)
+        return ret;
+    
+    tpl_unpack(tn,0);
+    
+    stream->codec->extradata_size = data.sz;
+    stream->codec->extradata = data.addr;
+    stream->codec->codec_tag = 0;
+    
+    if(DEBUG_PRINT) {
+        fprintf(stderr, "Loaded stream CTB: %d/%d (1/=%2.2f)\n", stream->codec->time_base.num, stream->codec->time_base.den, (float)stream->codec->time_base.den/stream->codec->time_base.num);
+        fprintf(stderr, "Loaded stream STB: %d/%d (1/=%2.2f)\n", stream->time_base.num, stream->time_base.den, (float)stream->time_base.den/stream->time_base.num);
+        fprintf(stderr, "Loaded stream TPF: %d\n", stream->codec->ticks_per_frame);
+    }
+    
+    tpl_free(tn);
+    
+    return ret;
+
 }
 
 int read_avstream_chunk_from_fd(int fd, AVFormatContext *os, AVStream **new_stream){
@@ -135,6 +200,7 @@ int read_avstream_chunk_from_fd(int fd, AVFormatContext *os, AVStream **new_stre
                  &(stream->r_frame_rate.den),
                  &(stream->sample_aspect_ratio.num),
                  &(stream->sample_aspect_ratio.den),
+                 &(stream->codec->flags),
                  &(stream->codec->bits_per_raw_sample),
                  &(stream->codec->chroma_sample_location),
                  &(stream->codec->codec_id),
@@ -194,6 +260,7 @@ int write_avstream_chunk_to_memory(AVStream *stream, uint8_t **unallocd_buffer, 
                  &(stream->r_frame_rate.den),
                  &(stream->sample_aspect_ratio.num),
                  &(stream->sample_aspect_ratio.den),
+                 &(stream->codec->flags),
                  &(stream->codec->bits_per_raw_sample),
                  &(stream->codec->chroma_sample_location),
                  &(stream->codec->codec_id),
@@ -229,7 +296,7 @@ int write_avstream_chunk_to_memory(AVStream *stream, uint8_t **unallocd_buffer, 
     return ret;
 }
 
-int write_avstream_chunk_as_cc_to_memory(AVCodecContext *codec, AVRational stream_time_base, AVRational stream_frame_rate, uint8_t **unallocd_buffer, int *size){
+int write_avstream_chunk_as_cc_to_memory(AVCodecContext *codec, AVRational stream_time_base, AVRational stream_frame_rate, AVRational stream_aspect_ratio, uint8_t **unallocd_buffer, int *size){
     tpl_node *tn;
     tpl_bin data;
     int ret;
@@ -242,8 +309,9 @@ int write_avstream_chunk_as_cc_to_memory(AVCodecContext *codec, AVRational strea
                  &(stream_time_base.den),
                  &(stream_frame_rate.num),
                  &(stream_frame_rate.den),
-                 &(codec->sample_aspect_ratio.num),
-                 &(codec->sample_aspect_ratio.den),
+                 &(stream_aspect_ratio.num),
+                 &(stream_aspect_ratio.den),
+                 &(codec->flags),
                  &(codec->bits_per_raw_sample),
                  &(codec->chroma_sample_location),
                  &(codec->codec_id),

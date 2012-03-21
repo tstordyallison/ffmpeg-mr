@@ -43,9 +43,11 @@ public class TransTest {
 		{
 			//runMapper("file:///Users/tom/Code/fyp/example-videos/Test.mp4.seq", "file:///Users/tom/Code/fyp/example-videos/Test.mp4.mapped.seq");
 			//runMapper("file:///Users/tom/Code/fyp/example-videos/Test.m4v.seq", "file:///Users/tom/Code/fyp/example-videos/Test.m4v.mapped.seq");
+			//runMapper("file:///Users/tom/Code/fyp/example-videos/TestMultiStream.m4v.seq", "file:///Users/tom/Code/fyp/example-videos/TestMultiStream.m4v.mapped.seq");
 			//runMapper("file:///Users/tom/Code/fyp/example-videos/Test.mkv.seq", "file:///Users/tom/Code/fyp/example-videos/Test.mkv.mapped.seq");
 			//runMapper("file:///Users/tom/Code/fyp/example-videos/Test.wmv.seq", "file:///Users/tom/Code/fyp/example-videos/Test.wmv.mapped.seq");
-			runMapper("file:///Users/tom/Code/fyp/example-videos/Test.avi.seq", "file:///Users/tom/Code/fyp/example-videos/Test.avi.mapped.seq");
+			runMapper("file:///Users/tom/Code/fyp/example-videos/Test2.avi.seq", "file:///Users/tom/Code/fyp/example-videos/Test2.avi.mapped.seq");
+			//runMapper("file:///Users/tom/Code/fyp/example-videos/TestSmall.avi.seq", "file:///Users/tom/Code/fyp/example-videos/TestSmall.avi.mapped.seq");
 		}
 	}
 	

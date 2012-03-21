@@ -17,18 +17,51 @@ extern "C" {
 }
 
 
+#define STREAM_BUFFER_SIZE 4096
+#define DEBUG_PRINT_CRAZY 0
+
+struct InputStreamOpaque{
+    JNIEnv *env;
+    jobject obj;
+    jobject stream;
+    long length;
+};
+
 struct DemuxState {
     AVFormatContext *fmt_ctx;
     AVPacket pkt;
+    
     int     stream_count;
     uint8_t **stream_data;
     int     *stream_data_sizes;
+    
     jclass  dpkt_clazz;
     jmethodID dpkt_ctr;
     AVRational *common_tb;
     int tb_lcm;
+    
+    int stream_io; 
+    uint8_t *stream_buffer;
+    InputStreamOpaque stream_info;
+    
+    DemuxState(){
+        this->fmt_ctx = NULL;
+        av_init_packet(&pkt);
+        
+        this->stream_count = -1;
+        this->stream_data = NULL;
+        this->stream_data_sizes = NULL;
+        
+        this->dpkt_clazz = NULL;
+        this->dpkt_ctr = NULL;
+        this->common_tb = NULL;
+        this->tb_lcm = -1;
+        
+        this->stream_io = 0;
+        this->stream_buffer = NULL;
+        this->stream_info.stream = NULL;
+    }
 };
-const struct DemuxState DEMUXSTATE_DEFAULT = {NULL, NULL, -1, NULL, NULL, NULL, NULL};
 
 class DemuxTracker {
     
@@ -41,7 +74,10 @@ public:
         int hashCode = getHashCode(env, obj);
         if(objectRegister.find(hashCode) != objectRegister.end())
         {
-            return objectRegister[hashCode];
+            DemuxState *state = objectRegister[hashCode];
+            state->stream_info.env = env;
+            state->stream_info.obj = obj;
+            return state;
         }
         return NULL;
     };
@@ -73,7 +109,20 @@ public:
             if(state->stream_data_sizes != NULL)
                 delete[] state->stream_data_sizes;
             
-            // Close the format context (TODO: think about what to do here if we are stream).
+            // Free streaming state.
+            if(state->stream_io)
+            {
+                // IO Context.
+                if(state->stream_buffer != NULL){
+                    av_free(state->fmt_ctx->pb);
+                }
+                
+                // Remove the stream ref
+                if(state->stream_info.stream != NULL)
+                    env->DeleteGlobalRef(state->stream_info.stream); 
+            }
+            
+            // Close the format context
             if(state->fmt_ctx != NULL)
                 avformat_close_input(&state->fmt_ctx);
             
@@ -89,48 +138,13 @@ public:
 
 static DemuxTracker tracker;
 
-
-static int initDemux(){
-    
-    
-}
-
-
-// JNI Methods.
-// --------
-
 /*
- * Class:     com_tstordyallison_ffmpegmr_Demuxer
- * Method:    initDemuxWithFile
- * Signature: (Ljava/lang/String;)V
+ * Set the state->fmt_ctx before calling this.
+ *
  */
-JNIEXPORT jint JNICALL Java_com_tstordyallison_ffmpegmr_Demuxer_initDemuxWithFile
-(JNIEnv *env, jobject obj, jstring jfilename){
-
-    // Local vars.
+static int init_demux(JNIEnv *env, jobject obj, DemuxState *state){
+    
     int err = 0;
-    int i, filename_copy;
-    const char *filename;
-    
-    // Init state and add them to the object register.
-    DemuxState *state = new DemuxState; 
-    *state = DEMUXSTATE_DEFAULT;
-    
-    // Opens the file, reads the streams, generates stream TPL, prepares for read calls.
-    // ---------
-    
-    // Open the file for reading.
-    filename = env->GetStringUTFChars(jfilename, (jboolean *)&filename_copy);
-    if ((err = avformat_open_input(&state->fmt_ctx, filename, NULL, NULL)) < 0) {
-        print_file_error(filename, err);
-        return -1;
-    }
-    
-    // Fill the streams in the format context
-    if ((err = avformat_find_stream_info(state->fmt_ctx, NULL)) < 0) {
-        printf("Failed to open streams in file %s, error %d\n", filename, err);
-        return -1;
-    }
     
     // Bind a decoder to each input stream, and generate the TPL stream headers.
     state->stream_count      = state->fmt_ctx->nb_streams;
@@ -138,7 +152,8 @@ JNIEXPORT jint JNICALL Java_com_tstordyallison_ffmpegmr_Demuxer_initDemuxWithFil
     state->stream_data_sizes = new int[state->stream_count];
     state->common_tb         = new AVRational[state->stream_count];
     
-    for (i = 0; i < state->fmt_ctx->nb_streams; i++) {
+    // Go thorugh each of the codec so we can bin the ones we don't support.
+    for (int i = 0; i < state->fmt_ctx->nb_streams; i++) {
         AVStream *stream = state->fmt_ctx->streams[i];
         AVCodec *codec;
         
@@ -173,8 +188,8 @@ JNIEXPORT jint JNICALL Java_com_tstordyallison_ffmpegmr_Demuxer_initDemuxWithFil
     // Use the least common multiple algorithm to adjust the timebases to have the same denominator.
     int *denoms = NULL;
     int denoms_size = 0;
-
-    for (i = 0; i < state->stream_count; i++){
+    
+    for (int i = 0; i < state->stream_count; i++){
         if(state->common_tb[i].den > 0){
             // Check to see if this value is already there.
             int contains = 0;
@@ -197,7 +212,7 @@ JNIEXPORT jint JNICALL Java_com_tstordyallison_ffmpegmr_Demuxer_initDemuxWithFil
     int lcm = state->tb_lcm = lcmf(denoms, denoms_size);
     
     // Set the new den and num for each of the tbs.
-    for (i = 0; i < state->stream_count; i++){
+    for (int i = 0; i < state->stream_count; i++){
         if(state->common_tb[i].den > 0)
         {
             if(lcm > state->common_tb[i].den) {
@@ -216,9 +231,9 @@ JNIEXPORT jint JNICALL Java_com_tstordyallison_ffmpegmr_Demuxer_initDemuxWithFil
             
             if(DEBUG)
                 fprintf(stderr, "Modified tb (%d): %d/%d (1/=%2.2f)\n", i, state->common_tb[i].num, state->common_tb[i].den, (float)state->common_tb[i].den/state->common_tb[i].num);
-        
+            
         }
-       
+        
     }
     
     free(denoms);
@@ -234,14 +249,11 @@ JNIEXPORT jint JNICALL Java_com_tstordyallison_ffmpegmr_Demuxer_initDemuxWithFil
         err = -1;
         goto failure;
     }
-
+    
     state->dpkt_ctr = env->GetMethodID(state->dpkt_clazz, "<init>", "()V");
     
-failure:
-    // Deallocs
-    if(filename_copy == JNI_TRUE)
-        env->ReleaseStringUTFChars(jfilename, filename);
     
+failure:
     // Either error, or return and register.
     if(err != 0)
     {
@@ -252,18 +264,115 @@ failure:
         tracker.registerObjectState(env, obj, state);
         return 0;
     }
+
+    
 }
 
+
+// JNI Methods.
+// --------
+
+/*
+ * Class:     com_tstordyallison_ffmpegmr_Demuxer
+ * Method:    initDemuxWithFile
+ * Signature: (Ljava/lang/String;)V
+ */
+JNIEXPORT jint JNICALL Java_com_tstordyallison_ffmpegmr_Demuxer_initDemuxWithFile
+(JNIEnv *env, jobject obj, jstring jfilename){
+
+    // Local vars.
+    int err = 0;
+    int filename_copy;
+    const char *filename;
+    
+    // Init state and add them to the object register.
+    DemuxState *state = new DemuxState; 
+    
+    // Open the file for reading.
+    filename = env->GetStringUTFChars(jfilename, (jboolean *)&filename_copy);
+    if ((err = avformat_open_input(&state->fmt_ctx, filename, NULL, NULL)) < 0) {
+        print_file_error(filename, err);
+        return -1;
+    }
+    
+    // Fill the streams in the format context
+    if ((err = avformat_find_stream_info(state->fmt_ctx, NULL)) < 0) {
+        printf("Failed to open streams in file %s, error %d\n", filename, err);
+        return -1;
+    }
+    
+    // Run the actual init.
+    int ret = init_demux(env, obj, state);
+    
+    // Deallocs
+    if(filename_copy == JNI_TRUE)
+        env->ReleaseStringUTFChars(jfilename, filename);
+    
+    return ret;
+}
 
 /*
  * FFmpeg custom IO read function - for use with JNI InputStream.
  */
-static int Java_InputStream_Read(/*jobject*/ void *jni_input_stream, uint8_t *buf, int buf_size){
+static int Java_InputStream_Read(/*InputStreamOpaque*/ void *jni_input_stream, uint8_t *buf, int buf_size){
+    InputStreamOpaque *info = (InputStreamOpaque *)jni_input_stream;
+    JNIEnv *env = info->env;
+    jclass      inputstream_clazz   = env->GetObjectClass(info->stream);
+    jmethodID   read                = env->GetMethodID(inputstream_clazz, "read", "([B)I");
     
+    jbyteArray dataArray = env->NewByteArray(buf_size);
+    int bytes_read = env->CallIntMethod(info->stream, read, dataArray);
     
+    if(bytes_read > 0 && !env->ExceptionCheck()){
+        env->GetByteArrayRegion(dataArray, 0, bytes_read, (jbyte *)buf);
+        env->DeleteLocalRef(dataArray);
+        return bytes_read;
+    }
+    else
+        return -1;
+}
+
+static int64_t Java_InputStream_Seek(/*InputStreamOpaque*/ void *jni_input_stream, int64_t offset, int whence)
+{
+    InputStreamOpaque *info = (InputStreamOpaque *)jni_input_stream;
+    JNIEnv *env = info->env;
+    jclass inputstream_clazz = env->GetObjectClass(info->stream);
+    jmethodID seek = env->GetMethodID(inputstream_clazz, "seek", "(J)V");
+    jmethodID getpos = env->GetMethodID(inputstream_clazz, "getPos", "()J");
     
-    
-    return -1;
+    switch (whence) {
+        case SEEK_SET: // Offset is relative to the start of the file.
+        {
+            if(DEBUG_PRINT_CRAZY)
+                fprintf(stderr, "Seeking to (SEEK_SET): %lld\n", offset);
+            if(offset < info->length)
+                env->CallVoidMethod(info->stream, seek, offset);
+            break;
+        }
+        case SEEK_CUR: // Offset is relative to the current postion.
+        {
+            long current_pos = env->CallLongMethod(info->stream, getpos);
+            if(DEBUG_PRINT_CRAZY)
+                fprintf(stderr, "Seeking to (SEEK_CUR): %lld\n", offset+current_pos);
+            if(offset+current_pos < info->length)
+                env->CallVoidMethod(info->stream, seek, offset+current_pos);
+            break;
+        }
+        case SEEK_END: // Offset is relative to the end of the file.
+        {
+            if(DEBUG_PRINT_CRAZY)
+                fprintf(stderr, "Seeking to (SEEK_END): %lld\n", offset+info->length);
+            if(offset+info->length < info->length)
+                env->CallVoidMethod(info->stream, seek, offset+info->length);
+            break;
+        }
+        case AVSEEK_SIZE: // Return the size.
+        {
+            return info->length;
+        }
+    }
+
+    return env->CallLongMethod(info->stream, getpos);
 }
 
 
@@ -273,12 +382,33 @@ static int Java_InputStream_Read(/*jobject*/ void *jni_input_stream, uint8_t *bu
  * Signature: (Ljava/io/InputStream;)V
  */
 JNIEXPORT jint JNICALL Java_com_tstordyallison_ffmpegmr_Demuxer_initDemuxWithStream
-(JNIEnv *env, jobject obj, jobject stream){
+(JNIEnv *env, jobject obj, jobject stream, jlong length){
+
+    // Init state and add them to the object register.
+    DemuxState *state = new DemuxState; 
+    state->stream_io = 1;
     
-    uint8_t *buffer = (uint8_t*)malloc(4096); 
-    AVIOContext *input_stream = avio_alloc_context(buffer, 4096, 0, stream, Java_InputStream_Read, NULL, NULL);
+    // Ask the JVM to give us a long reference to this Stream.
+    jobject stream_global = env->NewGlobalRef(stream);
     
-    return -1;
+    // Setup the IO context and init the format context.
+    state->stream_buffer = (uint8_t*)malloc(STREAM_BUFFER_SIZE); 
+    state->stream_info = (InputStreamOpaque){env, obj, stream_global, (long)length};
+    AVIOContext *input_stream = avio_alloc_context(state->stream_buffer, STREAM_BUFFER_SIZE, 0, &state->stream_info, Java_InputStream_Read, NULL, Java_InputStream_Seek);
+    
+    // Set and open the format context.
+    state->fmt_ctx = avformat_alloc_context();
+    state->fmt_ctx->pb = input_stream;
+    avformat_open_input(&state->fmt_ctx, "", NULL, NULL);
+    
+    // Do some more probing.
+    avformat_find_stream_info(state->fmt_ctx, NULL);
+    
+    // Run the actual init.
+    int ret = init_demux(env, obj, state);
+
+    // TODO: Clean up?    
+    return ret;
 }
 
 

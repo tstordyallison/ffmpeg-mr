@@ -22,8 +22,8 @@ import com.tstordyallison.ffmpegmr.ChunkData;
 import com.tstordyallison.ffmpegmr.ChunkID;
 import com.tstordyallison.ffmpegmr.Chunker;
 import com.tstordyallison.ffmpegmr.Chunker.ChunkerReport;
+import com.tstordyallison.ffmpegmr.Merger;
 import com.tstordyallison.ffmpegmr.WriterThread;
-import com.tstordyallison.ffmpegmr.util.FileUtils;
 import com.tstordyallison.ffmpegmr.util.OSValidator;
 import com.tstordyallison.ffmpegmr.util.Printer;
 
@@ -64,10 +64,12 @@ public class TranscodeJob {
 		}
 	}
 	
-	public static void main(String[] args) throws IOException, InterruptedException, ClassNotFoundException, URISyntaxException {		
+	public static void main(String[] args) throws IOException, InterruptedException, ClassNotFoundException, URISyntaxException, InstantiationException, IllegalAccessException {		
 		String jobID = UUID.randomUUID().toString();
 		
 		JobConf config = new JobConf();
+		config.set("fs.s3.awsAccessKeyId", "01MDAYB509VJ53B2EK02");
+		config.set("fs.s3.awsSecretAccessKey", "zwajpazry7Me7tnbYaw3ldoj5mbRDMFMHqYHgDmv");
 		config.set("fs.s3n.awsAccessKeyId", "01MDAYB509VJ53B2EK02");
 		config.set("fs.s3n.awsSecretAccessKey", "zwajpazry7Me7tnbYaw3ldoj5mbRDMFMHqYHgDmv");
 		config.setCompressMapOutput(false);
@@ -81,44 +83,21 @@ public class TranscodeJob {
 		{
 			args = new String[2];
 			args[0] = "file:///Users/tom/Code/fyp/example-videos/Test.avi";
-			args[1] = "file:///Users/tom/Code/fyp/example-videos/Test.avi.seq.hmapped";
+			args[1] = "file:///Users/tom/Code/fyp/example-videos/Test.avi.mkv.output" + jobID + "/";
 		}
 	        
 		// --------------------------
 		// Demux the file into the local HDFS.
 		// --------------------------
-		File movieFile = null;
+		Path movieFile = new Path(args[0]);
 		Path demuxData = new Path("/tmp/demux-temp-" + jobID); 
-		
-		if(args[0].startsWith("file://"))
-		{
-			movieFile  = new File(args[0].substring(7));
-		}
-		else
-		{
-			//  --- For now - the Chunker can only read from the local filesystem, so we must copy the movie into temp first.
-			File tempLocation = File.createTempFile("demux-movie", ".movie");
-			tempLocation.deleteOnExit();
-			
-			FileSystem fsSrc = FileSystem.get(new URI(args[0]), config);
-			FileSystem fsDst = FileSystem.get(new URI("file://" + tempLocation.getAbsolutePath()), config);
-			Printer.println("Copying input file to local filesystem.");
-			FileUtils.copy(fsSrc, new Path(args[0]) , fsDst, new Path("file://" + tempLocation.getAbsolutePath()), false, true, config);
-			
-			movieFile = tempLocation;
-			
-			fsSrc.close();
-			fsDst.close();
-		}
+		Path outputData = new Path("/tmp/reduced-output-temp-" + jobID); 
 		
 		// Demux the file.
-		ChunkerReport report = Chunker.chunkInputFile(movieFile, demuxData.toUri().toString());
+		ChunkerReport report = Chunker.chunkInputFile(config, movieFile.toUri().toString(), demuxData.toUri().toString());
         Printer.println("Total number of frames to process: " + report.getPacketCount());  
         config.setLong("tsa.tstordyallison.ffmpegmr.packetcount", report.getPacketCount());
         config.setLong("tsa.tstordyallison.ffmpegmr.duration", report.getEndTS());
-		
-		if(!args[0].startsWith("file://"))
-			movieFile.delete();
 		
 		// --------------------------
 		// Run the transcode job.
@@ -152,11 +131,10 @@ public class TranscodeJob {
 	    job.setOutputValueClass(BytesWritable.class);
 	    
         SequenceFileInputFormat.addInputPath(job, demuxData);
-        SequenceFileOutputFormat.setOutputPath(job, new Path(args[1] + "-" + jobID));
+        //SequenceFileOutputFormat.setOutputPath(job, outputData);
+        SequenceFileOutputFormat.setOutputPath(job, new Path(args[1]));
         
-        job.setJarByClass(TranscodeMapper.class);
-        job.setJarByClass(ChunkID.class);
-        job.setJarByClass(ChunkData.class);
+        job.setJarByClass(TranscodeJob.class);
        
         job.waitForCompletion(true);
         
@@ -165,8 +143,9 @@ public class TranscodeJob {
         // -----------------------------------------------------------------
         // Merge the output in HDFS back into a file, and place it in S3.
         // -----------------------------------------------------------------
-        
-        // TODO!
+
+        //Merger.merge(config, outputData, new Path(args[1]));
+        //FileSystem.get(config).delete(outputData, false);
 	}
 	
 	private static void copyNativeToLibPath(JobConf config) throws IOException, URISyntaxException
@@ -216,5 +195,4 @@ public class TranscodeJob {
 		}
 	}
 	
-
 }

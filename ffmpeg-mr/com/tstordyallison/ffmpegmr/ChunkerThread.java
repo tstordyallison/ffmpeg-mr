@@ -1,13 +1,23 @@
 package com.tstordyallison.ffmpegmr;
 
 import java.io.File;
+import java.io.IOException;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.ListIterator;
+import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.FSDataInputStream;
+import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.Path;
 import org.joda.time.Period;
 import org.joda.time.format.PeriodFormat;
 
@@ -23,16 +33,18 @@ public class ChunkerThread extends Thread {
 		private long 					endTSDen					= 0;
 		private long 					packetCount					= 0;
 		
+		private List<Boolean>           streamFirstChunk			= new ArrayList<Boolean>(demuxer.getStreamCount()); 
 		private List<ByteBuffer> 		streamHeaders 				= new ArrayList<ByteBuffer>(demuxer.getStreamCount()); 		
 		private List<List<DemuxPacket>> currentChunks				= new ArrayList<List<DemuxPacket>>(demuxer.getStreamCount()); 
 		private List<Integer> 			currentChunksSizes 			= new ArrayList<Integer>(demuxer.getStreamCount()); 			
 		private List<Integer> 			endMarkers 					= new ArrayList<Integer>(demuxer.getStreamCount()); 
-		private List<Long> 				chunkPoints 				= new LinkedList<Long>(); // Make me a better data structure.
+		private Set<Long> 				chunkPoints 				= new HashSet<Long>(); // Make me a better data structure.
 		
 		public ChunkBuffers()
 		{
 			for(int i = 0; i < demuxer.getStreamCount(); i++)
 			{
+				streamFirstChunk.add(true);
 				streamHeaders.add(ByteBuffer.wrap(demuxer.getStreamData(i)));
 				currentChunks.add(new LinkedList<DemuxPacket>()); // Linked list makes quite a difference.
 				currentChunksSizes.add(0);
@@ -85,7 +97,14 @@ public class ChunkerThread extends Thread {
 			}
 			else
 				chunkID.endTS = chunkBuffer.get(endMarker).ts;
-			chunkID.chunkNumber = chunkID.getMillisecondsStartTs();
+			
+			// Figure out the chunkNumber (this is used for tracking the chunks around the MR).
+			if(streamFirstChunk.get(streamID)){
+				chunkID.chunkNumber = 0; // This fixes the corner case where the first startTS is not 0 (e.g audio post-roll).
+				streamFirstChunk.set(streamID, false);
+			}
+			else
+				chunkID.chunkNumber = chunkID.getMillisecondsStartTs(); // This should always be correct as it will be a key frame.
 			
 			if(endTS < chunkID.endTS){
 				endTS = chunkID.endTS;
@@ -93,16 +112,16 @@ public class ChunkerThread extends Thread {
 				endTSDen = chunkID.tbDen;
 			}
 			
-			// Add this to our chunkPoints.
-			if(endMarker != chunkBuffer.size())
-				chunkPoints.add(chunkBuffer.get(endMarker).ts);
-			
 			// Find all of the output chunk points that apply to this chunk.
 			for(Long point : chunkPoints)
 			{
 				if(chunkID.startTS < point && point < chunkID.endTS)
 					chunkID.outputChunkPoints.add(point);
 			}
+			
+			// Add this to our chunk points going forward.
+			if(endMarker != chunkBuffer.size())
+				chunkPoints.add(chunkBuffer.get(endMarker).ts);
 			
 			// Build the chunk data.
 			ByteBuffer header = streamHeaders.get(streamID);
@@ -121,6 +140,9 @@ public class ChunkerThread extends Thread {
 			// Store the left over counter and increment the chunk counter, invalidate the end marker.
 			currentChunksSizes.set(streamID, currentChunksSizes.get(streamID) - actualChunkSize);
 			endMarkers.set(streamID, -1);
+			
+			// Sort the chunk points.
+			Collections.sort(chunkID.outputChunkPoints);
 			
 			// Return the new chunk (this also calls retain on the data so we dealloc correctly).
 			return new Chunk(chunkID, chunkData);
@@ -150,43 +172,50 @@ public class ChunkerThread extends Thread {
 					+ (endMarkers != null ? "\n\t\tendMarkers="
 							+ endMarkers.subList(0,
 									Math.min(endMarkers.size(), maxLen)) : "")
-					+ (chunkPoints != null ? "\n\t\tchunkPoints="
-							+ chunkPoints.subList(0,
-									Math.min(chunkPoints.size(), 20)) : "")
 					+ "\n]";
 		}
 		
 	}
 
+	public static boolean FORCE_STREAM = true;
+	
 	private BlockingQueue<Chunk> chunkQ;
-	private File file;
+	private FSDataInputStream in;
 	private long blockSize;
 	
 	private Demuxer demuxer;
 	private ChunkBuffers chunkBuffers;
 	
 	private long streamDuration;
-	
-	public ChunkerThread(BlockingQueue<Chunk> chunkQ, File file, long blockSize) {
-		initDemuxer(chunkQ, file, blockSize);
-	}
 
-	public ChunkerThread(BlockingQueue<Chunk> chunkQ, File file, long blockSize, String name) {
+	public ChunkerThread(Configuration config, BlockingQueue<Chunk> chunkQ, String inputUri, long blockSize, String name) throws IOException, URISyntaxException {
 		super(name);
-		initDemuxer(chunkQ, file, blockSize);
-	}
-
-	public ChunkerThread(BlockingQueue<Chunk> chunkQ, File file, long blockSize, ThreadGroup group, String name) {
-		super(group, name);
-		initDemuxer(chunkQ, file, blockSize);
+		initDemuxer(config, chunkQ, inputUri, blockSize);
 	}
 	
-	public void initDemuxer(BlockingQueue<Chunk> chunkQ, File file, long blockSize)
-	{
+	public void initDemuxer(Configuration config, BlockingQueue<Chunk> chunkQ, String inputUri, long blockSize) throws IOException, URISyntaxException
+	{	
 		this.chunkQ = chunkQ;
-		this.file = file;
 		this.blockSize = blockSize;
-		this.demuxer = new Demuxer(this.file.getAbsolutePath());
+		
+		if(FORCE_STREAM || !inputUri.startsWith("file://")){
+			Printer.println("Reading using Hadoop FS.");
+			
+			// Open up the filesystem for reading.
+			if(config == null)
+				config = new Configuration();
+			FileSystem fs = FileSystem.get(new URI(inputUri), config);
+			Path file = new Path(inputUri);
+			this.in = fs.open(file);
+			
+			// Open the demuxer.
+			this.demuxer = new Demuxer(in, fs.getFileStatus(file).getLen());
+		}
+		else
+		{
+			Printer.println("Reading using native file IO.");
+			this.demuxer = new Demuxer(new File(inputUri.substring(7)));
+		}
 		this.chunkBuffers = new ChunkBuffers();
 		this.streamDuration = this.demuxer.getDurationMs();
 		if(this.streamDuration > 0)
@@ -239,8 +268,13 @@ public class ChunkerThread extends Thread {
 			e.printStackTrace();
 		}
 		finally {
-		if(demuxer != null)
-			demuxer.close();
+			if(demuxer != null)
+				demuxer.close();
+			try {
+				if(in != null)
+					in.close();
+			} catch (IOException e) {
+			}
 		}
 		Printer.println("Demuxing complete. Thread ending.");
 	}

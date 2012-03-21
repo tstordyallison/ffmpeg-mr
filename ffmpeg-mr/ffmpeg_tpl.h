@@ -16,11 +16,11 @@ int tpl_gather_image_list(uint8_t *data, size_t size, TPLImageRef **list, size_t
 
 //------------------ AVStream Header Read/Write ------------------//
 
-int read_avstream_chunk_as_cc_from_memory(uint8_t *buf, size_t buf_size, AVCodecContext **cc, AVRational *stream_time_base, AVRational *stream_frame_rate);
+int read_avstream_chunk_as_cc_from_memory(uint8_t *buf, size_t buf_size, AVCodecContext **codec_ref, AVRational *stream_time_base, AVRational *stream_frame_rate, AVRational *stream_aspect_ratio);
 int read_avstream_chunk_from_memory(uint8_t *buf, int buf_size, AVFormatContext *os, AVStream **stream);
 int read_avstream_chunk_from_fd(int fd, AVFormatContext *os, AVStream **stream);
 
-int write_avstream_chunk_as_cc_to_memory(AVCodecContext *codec_ref, AVRational stream_time_base, AVRational stream_frame_rate, uint8_t **unallocd_buffer, int *size);
+int write_avstream_chunk_as_cc_to_memory(AVCodecContext *codec_ref, AVRational stream_time_base, AVRational stream_frame_rate, AVRational stream_aspect_ratio, uint8_t **unallocd_buffer, int *size);
 int write_avstream_chunk_to_memory(AVStream *stream, uint8_t **unallocd_buffer, int *size);
 int write_avstream_chunk_to_fd(AVStream *stream, int fd);
 

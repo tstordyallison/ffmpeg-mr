@@ -43,6 +43,7 @@ typedef struct TranscoderState {
     
     AVRational input_tb;
     AVRational input_frame_rate;
+    AVRational input_aspect_ratio;
 
     AVCodecContext  *decoder;
     AVCodecContext  *encoder;
@@ -64,6 +65,8 @@ typedef struct TranscoderState {
     
     AVFifoBuffer *fifo; // Circular buffer for storing audio samples and adjusting their size for the encoder. 
 
+    int stream_index;
+    
     TranscoderState(){
         data = NULL;
         data_size = 0;
@@ -80,7 +83,9 @@ typedef struct TranscoderState {
         chunk_points_cursor_enc = 0;
         chunk_points_cursor_out = 0;
         
-        input_tb = (AVRational){0,1};
+        input_tb            = (AVRational){0,1};
+        input_frame_rate    = (AVRational){0,1};
+        input_aspect_ratio  = (AVRational){0,1};
         
         decoder = NULL;
         encoder = NULL;
@@ -102,6 +107,8 @@ typedef struct TranscoderState {
         raw_video = avcodec_alloc_frame(); avcodec_get_frame_defaults(raw_video);
         
         fifo = av_fifo_alloc(1024);
+        
+        stream_index = -1;
     };
     
     ~TranscoderState(){
@@ -132,8 +139,6 @@ typedef struct TranscoderState {
         
         if(decoder != NULL)
         {
-            if(this->decoder->extradata)
-                free(this->decoder->extradata);
             avcodec_close(decoder);
             av_free(decoder);
             decoder = NULL;
@@ -141,8 +146,6 @@ typedef struct TranscoderState {
         
         if(encoder != NULL)
         {
-            if(this->encoder->extradata)
-                free(this->encoder->extradata);
             avcodec_close(encoder);
             av_free(encoder);
             encoder = NULL;
@@ -269,7 +272,7 @@ JNIEXPORT jint JNICALL Java_com_tstordyallison_ffmpegmr_Transcoder_initWithBytes
     
     // Get the decoder info from the chunk header.
     TPLImageRef *header = &(state->image_list[state->image_cursor]);
-    if((err = read_avstream_chunk_as_cc_from_memory(header->data, header->size, &(state->decoder), &(state->input_tb), &(state->input_frame_rate))) != 0)
+    if((err = read_avstream_chunk_as_cc_from_memory(header->data, header->size, &(state->decoder), &(state->input_tb), &(state->input_frame_rate), &(state->input_aspect_ratio))) != 0)
     {
         throw_new_exception(env, "Init failed - reading header TPL image from data.");
         return err;
@@ -298,13 +301,13 @@ JNIEXPORT jint JNICALL Java_com_tstordyallison_ffmpegmr_Transcoder_initWithBytes
             {
                 AVDictionary *copts = NULL;
                 state->encoder = avcodec_alloc_context3(encoder_codec);
-                
-                state->encoder->gop_size = 350;
+                state->encoder->flags |= CODEC_FLAG_GLOBAL_HEADER;
+                state->encoder->gop_size = 250;
                 state->encoder->keyint_min = 2;
                 state->encoder->max_b_frames = 16;
                 //state->encoder->bit_rate = state->decoder->bit_rate;
-                av_dict_set(&copts, "crf", "20", 0);
-                
+                av_dict_set(&copts, "crf", "21", 0);
+                state->encoder->sample_aspect_ratio = state->input_aspect_ratio;
                 state->encoder->width = state->decoder->width;
                 state->encoder->height = state->decoder->height;
                 state->encoder->pix_fmt = state->decoder->pix_fmt;
@@ -339,8 +342,8 @@ JNIEXPORT jint JNICALL Java_com_tstordyallison_ffmpegmr_Transcoder_initWithBytes
             {
                 AVDictionary *copts= NULL;
                 state->encoder = avcodec_alloc_context3(encoder_codec);
-                
-                state->encoder->bit_rate = 96000; // 96kbit audio.
+                state->encoder->flags |= CODEC_FLAG_GLOBAL_HEADER;
+                state->encoder->bit_rate = 128000;
                 state->encoder->sample_fmt = state->decoder->sample_fmt;
                 state->encoder->sample_rate = state->decoder->sample_rate;
                 state->encoder->channels = state->decoder->channels;
@@ -454,6 +457,9 @@ static int read_avpacket(TranscoderState *state)
 #endif
             state->demux_frame_count += 1;
             state->image_cursor += 1;
+            
+            if(state->stream_index < 0)
+                state->stream_index = state->input_packet->stream_index;
             return (int)packet->size;
         }
         else
@@ -875,10 +881,10 @@ JNIEXPORT jobject JNICALL Java_com_tstordyallison_ffmpegmr_Transcoder_getNextPac
                         {
                             state->encoder_frame_count += 1;
                             
-                            //output_pkt.pts = state->encoder->coded_frame->pts + state->offset_pts;
-                            
                             if(state->encoder->coded_frame->key_frame)
                                 output_pkt.flags |= AV_PKT_FLAG_KEY;
+                            
+                            output_pkt.stream_index = state->stream_index;
                             
                             if(DEBUG_PRINT_CRAZY)
                                 fprintf(stderr, "Encoded frame: pts=%lld, type=%c\n", output_pkt.pts, av_get_picture_type_char(state->encoder->coded_frame->pict_type));
@@ -971,6 +977,7 @@ JNIEXPORT jobject JNICALL Java_com_tstordyallison_ffmpegmr_Transcoder_getNextPac
                                 output_pkt.flags |= AV_PKT_FLAG_KEY;
                             
                             output_pkt.duration = frame_size;
+                            output_pkt.stream_index = state->stream_index;
                             state->encoder_pts += frame_size;
                             
                             if(DEBUG_PRINT_CRAZY)
@@ -1110,7 +1117,7 @@ JNIEXPORT jbyteArray JNICALL Java_com_tstordyallison_ffmpegmr_Transcoder_getStre
         uint8_t *data = NULL;
         int data_size = 0;
         
-        int err = write_avstream_chunk_as_cc_to_memory(state->encoder, state->encoder->time_base, state->input_frame_rate, &data, &data_size);
+        int err = write_avstream_chunk_as_cc_to_memory(state->encoder, state->encoder->time_base, state->input_frame_rate, state->input_aspect_ratio, &data, &data_size);
         
         if(err >= 0)
         {

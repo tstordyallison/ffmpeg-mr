@@ -71,7 +71,7 @@
          </CommandLineArgument>
          <CommandLineArgument
             argument = "-Xmx1024m"
-            isEnabled = "NO">
+            isEnabled = "YES">
          </CommandLineArgument>
          <CommandLineArgument
             argument = "-Djava.library.path=/Users/tom/Code/fyp/ffmpeg-mr/ffmpeg-mr/"

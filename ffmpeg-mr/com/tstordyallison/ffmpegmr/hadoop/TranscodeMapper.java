@@ -94,7 +94,7 @@ public class TranscodeMapper extends Mapper<ChunkID,ChunkData,LongWritable,Chunk
 			if(key.startTS == currentPackets.get(0).ts)
 			{
 				// This is the first chunk/a normal chunk.
-				chunkID.chunkNumber = key.getMillisecondsStartTs();
+				chunkID.chunkNumber = key.chunkNumber; //key.getMillisecondsStartTs();
 			}
 			else if(key.outputChunkPoints.size() > 0)
 			{

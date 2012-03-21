@@ -1,6 +1,8 @@
 package com.tstordyallison.ffmpegmr;
 
-import java.io.InputStream;
+import java.io.File;
+import java.io.FileNotFoundException;
+import org.apache.hadoop.fs.FSDataInputStream;
 
 import com.tstordyallison.ffmpegmr.util.NativeUtil;
 
@@ -44,12 +46,18 @@ public class Demuxer {
 			throw new RuntimeException("Native init failed with code " + err + ". See stderr for more info.");
 	}
 	
-	public Demuxer(InputStream stream){
-		initDemuxWithStream(stream);
+	public Demuxer(FSDataInputStream stream, long length){
+		int err;
+		if((err = initDemuxWithStream(stream, length)) != 0)
+			throw new RuntimeException("Native init failed with code " + err + ". See stderr for more info.");
+	}
+	
+	public Demuxer(File file) throws FileNotFoundException{
+		initDemuxWithFile(file.getAbsolutePath());
 	}
 	
 	private native int initDemuxWithFile(String filename);
-	private native int initDemuxWithStream(InputStream stream);
+	private native int initDemuxWithStream(FSDataInputStream stream, long length);
 	
 	public native int getStreamCount();
 	public native byte[] getStreamData(int streamID);

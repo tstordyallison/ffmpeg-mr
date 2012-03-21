@@ -22,7 +22,7 @@ public class RemuxReducer extends Reducer<LongWritable, Chunk, LongWritable, Byt
 	 */
 	@Override
 	protected void reduce(LongWritable timestamp, Iterable<Chunk> chunks, Context context) throws IOException, InterruptedException {
-		context.write(timestamp, new BytesWritable(Remuxer.muxChunks(chunks)));
+		context.write(new LongWritable(timestamp.get()), new BytesWritable(Remuxer.muxChunks(chunks)));
 	}
 
 }

@@ -49,18 +49,21 @@ public class JobLoader {
     private static final String EC2_KEY_NAME = "tstordyallison";
     private static final String REGION_ID =  "eu-west-1";
     private static final String EMR_ENDPOINT = "https://elasticmapreduce." + REGION_ID + ".amazonaws.com";
-    private static final String MASTER_INSTANCE_TYPE = InstanceType.M1Small.toString();
+    private static final String MASTER_INSTANCE_TYPE = InstanceType.M1Large.toString();
     
-    private static final boolean USE_NEW_CLUSTER = true;
-    private static final boolean DEBUGGING = true;
+    private static final boolean USE_NEW_CLUSTER = false;
+    private static final boolean DEBUGGING = false;
     private static final boolean STAY_ALIVE = true;
     //private static final boolean REBUILD = true;
 
     // Shutter.Island.2010.720p.BluRay.x264.DTS-WiKi.m4v
     
-    private static final String[][] JOB_ARGS = {new String[] { "s3://ffmpeg-mr/movies/Test.mkv", "s3://ffmpeg-mr/output/" + FLOW_NAME}, 
-    											new String[] { "s3://ffmpeg-mr/movies/Test.avi", "s3://ffmpeg-mr/output/" + FLOW_NAME}, 
-												new String[] { "s3://ffmpeg-mr/movies/Test.mp4", "s3://ffmpeg-mr/output/" + FLOW_NAME}};
+    private static final String[][] JOB_ARGS = 
+    	{//new String[] { "s3://ffmpeg-mr/movies/Test.mkv", "s3://ffmpeg-mr/output/mkv-" + FLOW_NAME}, 
+    	 new String[] { "s3://ffmpeg-mr/movies/Stargate%20Atlantis%20Season%203/Stargate%20Atlantis%20S03E01%20-%20No%20Man%27s%20Land.avi", 
+    				    "s3://ffmpeg-mr/output/avi-" + FLOW_NAME}//, 
+		 //new String[] { "s3://ffmpeg-mr/movies/Test.mp4", "s3://ffmpeg-mr/output/mp4-" + FLOW_NAME}]
+    	 };
     private static final List<JobFlowExecutionState> DONE_STATES = Arrays
         .asList(new JobFlowExecutionState[] { JobFlowExecutionState.COMPLETED,
                                               JobFlowExecutionState.FAILED,
@@ -131,7 +134,7 @@ public class JobLoader {
             else
             {
             	System.out.println("Configuring new cluster.");
-            	System.out.println("Using instance count: " + INSTANCE_COUNT);
+            	System.out.println("Using instance count: " + INSTANCE_COUNT + " (+ master)");
             	System.out.println("Using instance type: " + INSTANCE_TYPE);
             	
                 JobFlowInstancesConfig instances = new JobFlowInstancesConfig();
@@ -152,6 +155,7 @@ public class JobLoader {
                 instances.setEc2KeyName(EC2_KEY_NAME);
                 if(STAY_ALIVE)
                 	instances.setKeepJobFlowAliveWhenNoSteps(true);
+                 
                 
                 // Bootstrap the multi-part support.
                 BootstrapActionConfig bsMultiSupport = new BootstrapActionConfig();
@@ -169,6 +173,7 @@ public class JobLoader {
                 bsCoreNumber.setScriptBootstrapAction(
                 		new ScriptBootstrapActionConfig("s3://elasticmapreduce/bootstrap-actions/configure-hadoop", 
                 				Arrays.asList(new String[] {"-s", "mapred.tasktracker.map.tasks.maximum=" + NUMBER_OF_CORES })));
+           
                 
                 RunJobFlowRequest request = new RunJobFlowRequest(FLOW_NAME, instances);
                 request.setBootstrapActions(Arrays.asList(new BootstrapActionConfig[]{ bsMultiSupport, bsCoreNumber }));

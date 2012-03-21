@@ -32,10 +32,10 @@ JNIEXPORT jint JNICALL Java_com_tstordyallison_ffmpegmr_Demuxer_initDemuxWithFil
 /*
  * Class:     com_tstordyallison_ffmpegmr_Demuxer
  * Method:    initDemuxWithStream
- * Signature: (Ljava/io/InputStream;)I
+ * Signature: (Lorg/apache/hadoop/fs/FSDataInputStream;J)I
  */
 JNIEXPORT jint JNICALL Java_com_tstordyallison_ffmpegmr_Demuxer_initDemuxWithStream
-  (JNIEnv *, jobject, jobject);
+  (JNIEnv *, jobject, jobject, jlong);
 
 /*
  * Class:     com_tstordyallison_ffmpegmr_Demuxer
