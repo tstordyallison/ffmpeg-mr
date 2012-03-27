@@ -22,6 +22,7 @@ import com.amazonaws.services.elasticmapreduce.model.BootstrapActionConfig;
 import com.amazonaws.services.elasticmapreduce.model.DescribeJobFlowsRequest;
 import com.amazonaws.services.elasticmapreduce.model.DescribeJobFlowsResult;
 import com.amazonaws.services.elasticmapreduce.model.HadoopJarStepConfig;
+import com.amazonaws.services.elasticmapreduce.model.InstanceGroupConfig;
 import com.amazonaws.services.elasticmapreduce.model.JobFlowDetail;
 import com.amazonaws.services.elasticmapreduce.model.JobFlowExecutionState;
 import com.amazonaws.services.elasticmapreduce.model.JobFlowInstancesConfig;
@@ -31,15 +32,25 @@ import com.amazonaws.services.elasticmapreduce.model.ScriptBootstrapActionConfig
 import com.amazonaws.services.elasticmapreduce.model.StepConfig;
 import com.amazonaws.services.s3.transfer.TransferManager;
 import com.amazonaws.services.s3.transfer.Upload;
+import com.tstordyallison.ffmpegmr.Chunker;
+import com.tstordyallison.ffmpegmr.ChunkerThread;
+import com.tstordyallison.ffmpegmr.WriterThread;
 import com.tstordyallison.ffmpegmr.util.Stopwatch;
 
 public class JobLoader {
-	private static final String AMI_VERSION = "2.0";
+	private static final String AMI_VERSION = "2.0.4";
     private static final String HADOOP_VERSION = "0.20.205";
     
-    private static final int    INSTANCE_COUNT = 2;
+    // Normal core worker instances.
+    private static final int    INSTANCE_COUNT = 0;
     private static final String INSTANCE_TYPE = InstanceType.C1Xlarge.toString();
-    private static final int    NUMBER_OF_CORES = 8;
+    private static final String BID_PRICE = "0.40"; // Normally $0.744 per hour (+ $0.12 per hour for EMR)
+    private static final int    NUMBER_OF_MAP_CORES = 8;
+    private static final int    NUMBER_OF_REDUCE_PER_MACHINE = 8;
+    
+    // Extra helper instances - not part of HDFS, and can come and go as the prices fluctuate.
+    private static final int    TASK_INSTANCE_COUNT = 0;
+    private static final String TASK_BID_PRICE = "0.25"; // Normally $0.744 per hour (+ $0.12 per hour for EMR)
     
     private static final UUID   RANDOM_UUID = UUID.randomUUID();
     private static final String FLOW_NAME = "ffmpeg-mr-" + RANDOM_UUID.toString();
@@ -49,20 +60,20 @@ public class JobLoader {
     private static final String EC2_KEY_NAME = "tstordyallison";
     private static final String REGION_ID =  "eu-west-1";
     private static final String EMR_ENDPOINT = "https://elasticmapreduce." + REGION_ID + ".amazonaws.com";
-    private static final String MASTER_INSTANCE_TYPE = InstanceType.M1Large.toString();
+    private static final String MASTER_INSTANCE_TYPE = InstanceType.C1Xlarge.toString();
+    private static final String MASTER_BID_PRICE = "0.40";  // Normally $0.186 per hour (+ $0.03 per hour for EMR)
     
     private static final boolean USE_NEW_CLUSTER = false;
     private static final boolean DEBUGGING = false;
     private static final boolean STAY_ALIVE = true;
-    //private static final boolean REBUILD = true;
+    private static final boolean MASTER_BUILD = false;
 
-    // Shutter.Island.2010.720p.BluRay.x264.DTS-WiKi.m4v
-    
     private static final String[][] JOB_ARGS = 
-    	{//new String[] { "s3://ffmpeg-mr/movies/Test.mkv", "s3://ffmpeg-mr/output/mkv-" + FLOW_NAME}, 
-    	 new String[] { "s3://ffmpeg-mr/movies/Stargate%20Atlantis%20Season%203/Stargate%20Atlantis%20S03E01%20-%20No%20Man%27s%20Land.avi", 
-    				    "s3://ffmpeg-mr/output/avi-" + FLOW_NAME}//, 
-		 //new String[] { "s3://ffmpeg-mr/movies/Test.mp4", "s3://ffmpeg-mr/output/mp4-" + FLOW_NAME}]
+    	{
+    	 //new String[] { "s3://ffmpeg-mr/movies/Test.mkv", "s3://ffmpeg-mr/output/mkv-" + FLOW_NAME}, 
+    	 new String[] { "s3://ffmpeg-mr/movies/Test.m4v.seq", "s3://ffmpeg-mr/output/Test.m4v-" + FLOW_NAME},
+    	 //new String[] { "s3://ffmpeg-mr/movies/TestLarge.m4v.seq", "s3://ffmpeg-mr/output/TestLarge.m4v-" + FLOW_NAME},
+    	 //new String[] { "s3://ffmpeg-mr/movies/Shutter.Island.2010.720p.BluRay.x264.DTS-WiKi.m4v", "s3://ffmpeg-mr/output/shutter-" + FLOW_NAME}
     	 };
     private static final List<JobFlowExecutionState> DONE_STATES = Arrays
         .asList(new JobFlowExecutionState[] { JobFlowExecutionState.COMPLETED,
@@ -82,7 +93,7 @@ public class JobLoader {
         System.out.println("===========================================");
 
         AWSCredentials credentials = new PropertiesCredentials(JobLoader.class
-                .getResourceAsStream("/com/tstordyallison/ffmpegmr/emr/AwsCredentials.properties"));
+                .getResourceAsStream("/com/tstordyallison/ffmpegmr/AwsCredentials.properties"));
 
         emr = new AmazonElasticMapReduceClient(credentials);
         emr.setEndpoint(EMR_ENDPOINT);
@@ -97,16 +108,6 @@ public class JobLoader {
         	
             // Configure the Hadoop jar to use
         	List<StepConfig> steps = new ArrayList<StepConfig>();
-        	
-        	if(DEBUGGING)	
-            {
-               HadoopJarStepConfig debugJarConfig = new HadoopJarStepConfig("s3://"+ REGION_ID + ".elasticmapreduce/libs/script-runner/script-runner.jar");
-               debugJarConfig.setArgs(Arrays.asList(new String[]{"s3://"+ REGION_ID + ".elasticmapreduce/libs/state-pusher/0.1/fetch"}));           
-               StepConfig debugInitConfig = new StepConfig("Initialse debugger...", debugJarConfig );
-               debugInitConfig.setActionOnFailure(ActionOnFailure.CANCEL_AND_WAIT);
-               steps.add(debugInitConfig);
-            }
-        	
         	for(String[] jobArgs : JOB_ARGS){
         		HadoopJarStepConfig jarConfig = new HadoopJarStepConfig(S3N_HADOOP_JAR);
                 jarConfig.setArgs(Arrays.asList(jobArgs));           
@@ -123,7 +124,7 @@ public class JobLoader {
         	DescribeJobFlowsResult checker = emr.describeJobFlows((new DescribeJobFlowsRequest()).withJobFlowStates(JobFlowExecutionState.WAITING.toString()));
             List<JobFlowDetail> flows = checker.getJobFlows();
             
-            if(flows.size() > 0 && !USE_NEW_CLUSTER)
+            if(flows.size() > 0 && !USE_NEW_CLUSTER && flows.get(0).getName().startsWith("ffmpeg-mr-"))
             {
             	System.out.println("Using existing cluster.");
             	jobFlowID = flows.get(0).getJobFlowId();
@@ -134,53 +135,92 @@ public class JobLoader {
             else
             {
             	System.out.println("Configuring new cluster.");
-            	System.out.println("Using instance count: " + INSTANCE_COUNT + " (+ master)");
+            	System.out.println("Using instance count: " + INSTANCE_COUNT + " (+ 1 master)");
             	System.out.println("Using instance type: " + INSTANCE_TYPE);
             	
-                JobFlowInstancesConfig instances = new JobFlowInstancesConfig();
-                instances.setHadoopVersion(HADOOP_VERSION);
-                if(INSTANCE_COUNT == 1)
+            	List<InstanceGroupConfig> instanceGroups = new ArrayList<InstanceGroupConfig>();
+            	
+            	instanceGroups.add(new InstanceGroupConfig()
+	            	.withInstanceCount(1)
+	            	.withInstanceRole("MASTER")
+	            	.withInstanceType(MASTER_INSTANCE_TYPE)
+	            	.withMarket("SPOT")
+	            	.withBidPrice(MASTER_BID_PRICE));
+            	
+                 
+                if(INSTANCE_COUNT > 0) // We also turn on the task group here too, as we must be doing something decent.
                 {
-                	instances.setInstanceCount(INSTANCE_COUNT);
-                	instances.setMasterInstanceType(INSTANCE_TYPE);
-                    instances.setSlaveInstanceType(INSTANCE_TYPE);
+                	instanceGroups.add(new InstanceGroupConfig()
+	                	.withInstanceCount(INSTANCE_COUNT)
+	                	.withInstanceRole("CORE")
+	                	.withInstanceType(INSTANCE_TYPE)
+	                	.withMarket("SPOT")
+	                	.withBidPrice(BID_PRICE));
+                	
+                	instanceGroups.add(new InstanceGroupConfig()
+	                	.withInstanceCount(TASK_INSTANCE_COUNT)
+	                	.withInstanceRole("TASK")
+	                	.withInstanceType(INSTANCE_TYPE)
+	                	.withMarket("SPOT")
+	                	.withBidPrice(TASK_BID_PRICE));
                 }
-                else
+               
+                if(DEBUGGING)	
                 {
-                	instances.setInstanceCount(INSTANCE_COUNT+1);
-                	instances.setMasterInstanceType(MASTER_INSTANCE_TYPE);
-                    instances.setSlaveInstanceType(INSTANCE_TYPE);
+                   HadoopJarStepConfig debugJarConfig = new HadoopJarStepConfig("s3://"+ REGION_ID + ".elasticmapreduce/libs/script-runner/script-runner.jar");
+                   debugJarConfig.setArgs(Arrays.asList(new String[]{"s3://"+ REGION_ID + ".elasticmapreduce/libs/state-pusher/0.1/fetch"}));           
+                   StepConfig debugInitConfig = new StepConfig("Initialse debugger...", debugJarConfig );
+                   debugInitConfig.setActionOnFailure(ActionOnFailure.CANCEL_AND_WAIT);
+                   
+                   steps.add(0, debugInitConfig);
                 }
                 
+                JobFlowInstancesConfig instances = new JobFlowInstancesConfig();
+                instances.setHadoopVersion(HADOOP_VERSION);
+                instances.setInstanceGroups(instanceGroups);
                 instances.setEc2KeyName(EC2_KEY_NAME);
                 if(STAY_ALIVE)
                 	instances.setKeepJobFlowAliveWhenNoSteps(true);
-                 
+
+                List<BootstrapActionConfig> bootstraps = new ArrayList<BootstrapActionConfig>();
                 
-                // Bootstrap the multi-part support.
                 BootstrapActionConfig bsMultiSupport = new BootstrapActionConfig();
-                bsMultiSupport.setName("Configure multi-part/5TB support...");
+                bsMultiSupport.setName("Configure multi-part/5TB support/block size/etc...");
                 bsMultiSupport.setScriptBootstrapAction(
                 		new ScriptBootstrapActionConfig("s3://elasticmapreduce/bootstrap-actions/configure-hadoop", 
                 				Arrays.asList(new String[] {"-c", "fs.s3.multipart.uploads.enabled=true",
                 											"-c", "fs.s3.multipart.uploads.split.size=524288000",
                 											"-c", "fs.s3n.multipart.uploads.enabled=true",
-                											"-c", "fs.s3n.multipart.uploads.split.size=524288000",})));
+                											"-c", "fs.s3n.multipart.uploads.split.size=524288000",
+                											"-s", "fs.s3n.blockSize=" + WriterThread.BLOCK_SIZE, 
+                											"-s", "fs.s3.blockSize=" + WriterThread.BLOCK_SIZE, 
+                											"-s", "mapred.tasktracker.map.tasks.maximum=" + NUMBER_OF_MAP_CORES,
+                											"-s", "mapred.tasktracker.reduce.tasks.maximum=" + NUMBER_OF_REDUCE_PER_MACHINE, 
+                											"-m", "mapred.job.reuse.jvm.num.tasks=1"})));
+                bootstraps.add(bsMultiSupport);
                 
-                // For now this only allow for us to use identical machines.
-                BootstrapActionConfig bsCoreNumber = new BootstrapActionConfig();
-                bsCoreNumber.setName("Configure map task max...");
-                bsCoreNumber.setScriptBootstrapAction(
-                		new ScriptBootstrapActionConfig("s3://elasticmapreduce/bootstrap-actions/configure-hadoop", 
-                				Arrays.asList(new String[] {"-s", "mapred.tasktracker.map.tasks.maximum=" + NUMBER_OF_CORES })));
-           
+                BootstrapActionConfig bsSwap = new BootstrapActionConfig();
+                bsSwap.setName("Configure 4GB swap space to alleviate memory pressure.");
+                bsSwap.setScriptBootstrapAction(
+                		new ScriptBootstrapActionConfig("s3://elasticmapreduce/bootstrap-actions/create-swap-file.rb", 
+                							Arrays.asList(new String[] {"-s", "/mnt/swapfile", "4096"})));
+                bootstraps.add(bsSwap);
                 
+                if(MASTER_BUILD)
+                {
+                	BootstrapActionConfig bs = new BootstrapActionConfig();
+                	bs.setName("Build the FFmpeg-MR native libs on the master node.");
+                	bs.setScriptBootstrapAction(
+                    		new ScriptBootstrapActionConfig("s3://ffmpeg-mr/build/build.sh", Arrays.asList(new String[] {"master-only"})));
+                    bootstraps.add(bs);
+                }
+                	
                 RunJobFlowRequest request = new RunJobFlowRequest(FLOW_NAME, instances);
-                request.setBootstrapActions(Arrays.asList(new BootstrapActionConfig[]{ bsMultiSupport, bsCoreNumber }));
+                request.setBootstrapActions(bootstraps);
                 request.setAmiVersion(AMI_VERSION);
                 request.setLogUri(S3N_LOG_URI);
-                request.setSteps(steps);
-
+            	request.setSteps(steps);
+               
                 RunJobFlowResult result = emr.runJobFlow(request);
                 jobFlowID = result.getJobFlowId();
             }

@@ -65,6 +65,7 @@ JNIEXPORT jbyteArray JNICALL Java_com_tstordyallison_ffmpegmr_Remuxer_muxChunks(
     
     uint8_t **data_chunks = NULL; // Array of byte arrays containing each streams data. 
     size_t *data_chunks_size  = NULL;
+    int *data_chunks_streamid  = NULL;
     int nb_chunks = 0;
     
     while(env->CallBooleanMethod(iterator, hasNext))
@@ -72,16 +73,18 @@ JNIEXPORT jbyteArray JNICALL Java_com_tstordyallison_ffmpegmr_Remuxer_muxChunks(
         // Increment and alloc.
         nb_chunks += 1;
         data_chunks = (uint8_t **)realloc(data_chunks, sizeof(uint8_t *) * nb_chunks);
-        data_chunks_size = (size_t *)realloc(data_chunks_size, sizeof(uint8_t *) * nb_chunks);
+        data_chunks_size = (size_t *)realloc(data_chunks_size, sizeof(size_t *) * nb_chunks);
+        data_chunks_streamid = (int *)realloc(data_chunks_streamid, sizeof(int *) * nb_chunks);
         
         // Get the chunk and copy over the data.
         jclass  chunk_clazz = env->FindClass("com/tstordyallison/ffmpegmr/Chunk");
         jobject chunk       = env->CallObjectMethod(iterator, next);
+        jmethodID getChunkID   = env->GetMethodID(chunk_clazz, "getChunkID", "()Lcom/tstordyallison/ffmpegmr/ChunkID;");
         jmethodID getChunkData   = env->GetMethodID(chunk_clazz, "getChunkData", "()Lcom/tstordyallison/ffmpegmr/ChunkData;");
         
-        if(!getChunkData)
+        if(!getChunkData || !getChunkID)
         {
-            throw_new_exception(env, "getChunkData method missing");
+            throw_new_exception(env, "getChunkData/ID method missing");
             return NULL;
         }
         
@@ -109,13 +112,54 @@ JNIEXPORT jbyteArray JNICALL Java_com_tstordyallison_ffmpegmr_Remuxer_muxChunks(
         env->GetByteArrayRegion(dataArray, 0, (jint)data_size, (jbyte *)data);
         env->DeleteLocalRef(dataArray);
         
+        // Get ChunkID
+        jclass chunk_id_clazz = env->FindClass("com/tstordyallison/ffmpegmr/ChunkID");
+        jobject chunk_id      = env->CallObjectMethod(chunk, getChunkID);
+        jfieldID streamID     = env->GetFieldID(chunk_id_clazz, "streamID", "I");
+        
         // Save the data pointers.
         data_chunks[nb_chunks-1] = data;
         data_chunks_size[nb_chunks-1] = data_size;
+        data_chunks_streamid[nb_chunks-1] = (int)env->GetIntField(chunk_id, streamID);
     }
     
     if(DEBUG)  
         fprintf(stderr, "Loaded %d chunks for remuxer.\n", nb_chunks);
+    
+    // ------------------------------------------------------------------------------------------
+    
+    // This is a really awful bubble sort of the data.
+    {
+        int i, j;
+        int temp_id;
+        uint8_t *temp_data;
+        size_t temp_size;
+        
+        for (i = (nb_chunks - 1); i > 0; i--)
+        {
+            for (j = 1; j <= i; j++)
+            {
+                if (data_chunks_streamid[j-1] > data_chunks_streamid[j])
+                {
+                    // Swap the streamids
+                    temp_id = data_chunks_streamid[j-1];
+                    data_chunks_streamid[j-1] = data_chunks_streamid[j];
+                    data_chunks_streamid[j] = temp_id;
+                    
+                    // Swap the data sizes
+                    temp_size = data_chunks_size[j-1];
+                    data_chunks_size[j-1] = data_chunks_size[j];
+                    data_chunks_size[j] = temp_size;
+                    
+                    // Swap the data pointers
+                    temp_data = data_chunks[j-1];
+                    data_chunks[j-1] = data_chunks[j];
+                    data_chunks[j] = temp_data;
+                }
+            }
+        }
+    }
+    
     
     // ------------------------------------------------------------------------------------------
     
@@ -155,7 +199,7 @@ JNIEXPORT jbyteArray JNICALL Java_com_tstordyallison_ffmpegmr_Remuxer_muxChunks(
         TPLImageRef stream_header = image_lists[i][image_cursors[i]]; image_cursors[i] += 1;
         if((read_avstream_chunk_from_memory(stream_header.data, stream_header.size, output_format_context, &stream) < 0))
         {
-            fprintf(stderr, "Failed to read AVStream chunk.");
+            fprintf(stderr, "Failed to read AVStream chunk.\n");
             return NULL;
         };
         
@@ -200,13 +244,8 @@ JNIEXPORT jbyteArray JNICALL Java_com_tstordyallison_ffmpegmr_Remuxer_muxChunks(
         // If we got something, process it.
         if(read_rets[chunk] > 0)
         {
-            // Check the stream index isn't stupid.
-            if(pkt->stream_index > output_format_context->nb_streams-1){
-                fprintf(stderr, "Packet for stream %d (dts=%lld, pts=%lld, size=%d, dyn_pos=%lld)\n", pkt->stream_index, pkt->dts, pkt->pts, pkt->size, output_io_context->pos);
-                fprintf(stderr, "Input stream index error (%d>%d). Is this a complete TS grouping?\n", pkt->stream_index, output_format_context->nb_streams-1);
-                throw_new_exception(env, "Input stream index error.");
-                return NULL;
-            }
+            // Set the stream ID (this is incase we have skipped any streams).
+            pkt->stream_index = chunk;
             
             // Set the pts and dts.
             if (pkt->pts != AV_NOPTS_VALUE)

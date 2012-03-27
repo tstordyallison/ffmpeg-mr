@@ -2,6 +2,8 @@ package com.tstordyallison.ffmpegmr;
 
 import java.io.IOException;
 import java.net.URI;
+import java.util.LinkedList;
+import java.util.Queue;
 import java.util.concurrent.BlockingQueue;
 
 import org.apache.hadoop.conf.Configuration;
@@ -15,11 +17,15 @@ import com.tstordyallison.ffmpegmr.util.Printer;
 
 public class WriterThread extends Thread{
 
+	public static int WRITE_BUFFER_SIZE = 4;
 	public static boolean FILE_PER_CHUNK = false;
 	public static int BLOCK_SIZE = 16777216;
-	public static boolean PRINT_WRITE = false;
+	public static boolean PRINT_WRITE = true;
 	
-	private BlockingQueue<Chunk> chunkQ;	
+	private boolean draining = false;
+	private BlockingQueue<Chunk> chunkQ;
+	private Queue<Chunk> bufferQ = new LinkedList<Chunk>();
+	
 	private String outputUri = "";
 	private Configuration conf;
 	private FileSystem fs;
@@ -27,32 +33,18 @@ public class WriterThread extends Thread{
 	private SequenceFile.Writer writer = null; 
 	private int blockSize = BLOCK_SIZE;
 	
-	public WriterThread(BlockingQueue<Chunk> chunkQ, String outputUri) {
-		super();
-		this.chunkQ = chunkQ;
-		this.outputUri = outputUri;
-		initFileSystem(chunkQ,outputUri);
-	}
-
-	public WriterThread(BlockingQueue<Chunk> chunkQ, String outputUri, String name) {
+	public WriterThread(Configuration conf, BlockingQueue<Chunk> chunkQ, String outputUri, String name) {
 		super(name);
+		this.conf = conf;
 		this.chunkQ = chunkQ;
 		this.outputUri = outputUri;
-		initFileSystem(chunkQ,outputUri);
+		initFileSystem(conf, chunkQ,outputUri);
 	}
 
-	public WriterThread(BlockingQueue<Chunk> chunkQ, String outputUri, ThreadGroup group, String name) {
-		super(group, name);
-		this.chunkQ = chunkQ;
-		this.outputUri = outputUri;
-		initFileSystem(chunkQ,outputUri);
-	}
-	
-	public void initFileSystem(BlockingQueue<Chunk> chunkQ, String outputUri)
+	private void initFileSystem(Configuration conf, BlockingQueue<Chunk> chunkQ, String outputUri)
 	{	
 		// Connect to the ouptut filesystem.
 		try {
-			conf = new Configuration();
 			conf.setInt("dfs.block.size", blockSize);
 			fs = FileSystem.get(URI.create(outputUri), conf);
 			path = new Path(outputUri);
@@ -68,21 +60,37 @@ public class WriterThread extends Thread{
 		// Process items in the writing queue and output them to the fs.
 		try{
 			
-			while(true){
-				// Get a chunk and write it out!
-				Chunk chunk = chunkQ.take();
-				if(chunk.getChunkData() == null)
-				{
-					Printer.println("Writing of final chunk complete. Writer thread stopping.");
-					break;
+			while(!draining){
+				
+				// Get a new chunk off the main Q, and add it to our buffer.
+				Chunk newChunk = chunkQ.take();
+				bufferQ.add(newChunk);
+				
+				// If this new chunk is null, then we are draining.
+				if(newChunk.getChunkData() == null)
+					draining = true;
+				
+				// If the buffer is big enough, or if we are draining, write out stuff to the FS.
+				while(draining || bufferQ.size() > WRITE_BUFFER_SIZE){
+					
+					// Get our chunk.
+					Chunk chunk = bufferQ.remove();
+					
+					// If this is the null marker, end.
+					if(chunk.getChunkData() == null)
+					{
+						Printer.println("Writing of final chunk complete. Writer thread stopping.");
+						break;
+					}
+					
+					if(FILE_PER_CHUNK)
+						initFileSystem(conf, chunkQ, outputUri + "." + chunk.getChunkID().getStreamID() + "." + chunk.getChunkID().getChunkNumber());
+					writer.append(chunk.getChunkID(), chunk.getChunkData());
+					if(FILE_PER_CHUNK)
+						writer.close();
+					if(PRINT_WRITE)
+						Printer.println("Written: " + chunk.toString());
 				}
-				if(FILE_PER_CHUNK)
-					initFileSystem(chunkQ, outputUri + "." + chunk.getChunkID().streamID + "." + chunk.getChunkID().chunkNumber);
-				writer.append(chunk.getChunkID(), chunk.getChunkData());
-				if(FILE_PER_CHUNK)
-					writer.close();
-				if(PRINT_WRITE)
-					Printer.println("Written: " + chunk.toString());
 			}
 			
 		} catch (InterruptedException e) {

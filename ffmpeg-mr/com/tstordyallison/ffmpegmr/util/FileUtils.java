@@ -13,6 +13,8 @@ import org.apache.hadoop.io.IOUtils;
 
 public class FileUtils {
 	
+	public final static long GIBIBYTE = 1073741824;
+	
 	public static boolean PRINT_INFO = true;
 	
 	public static String humanReadableByteCount(long bytes, boolean si) {
@@ -23,6 +25,7 @@ public class FileUtils {
 	    return String.format("%.1f %sB", bytes / Math.pow(unit, exp), pre);
 	}
 
+	
 	  /**
 	   * Copies from one stream to another.
 	   * @param in InputStrem to read from

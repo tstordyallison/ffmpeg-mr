@@ -20,6 +20,7 @@ extern "C" {
     #include "libavutil/fifo.h"
     #include "libavutil/avutil.h"
     #include "libavutil/opt.h"
+    #include "libswscale/swscale.h"
 #ifndef AWSBUILD
     #include "libavutil/timestamp.h"
 #endif
@@ -59,6 +60,12 @@ typedef struct TranscoderState {
     AVPacket *input_packet;
     
     int decoder_flushing;
+    
+    int resample; // true if we are resampling.
+    struct SwsContext *img_resample_ctx; /* for image resampling */
+    int resample_height;
+    int resample_width;
+    int resample_pix_fmt;
     
     AVFrame *raw_video; // A decoded picture.
     AVFrame *raw_audio; // A decoded number of audio samples
@@ -103,12 +110,15 @@ typedef struct TranscoderState {
         
         decoder_flushing = 0;
         
-        raw_audio = avcodec_alloc_frame(); avcodec_get_frame_defaults(raw_audio);
+        raw_audio = NULL; //avcodec_alloc_frame(); avcodec_get_frame_defaults(raw_audio);
         raw_video = avcodec_alloc_frame(); avcodec_get_frame_defaults(raw_video);
+        //avcodec_get_frame_defaults(&this->resample_frame);
         
         fifo = av_fifo_alloc(1024);
         
         stream_index = -1;
+        
+        img_resample_ctx = NULL;
     };
     
     ~TranscoderState(){
@@ -171,8 +181,12 @@ typedef struct TranscoderState {
             else
                 av_free(input_packet);
         }
+        
         if(fifo)
             av_fifo_free(fifo);
+        
+        if(img_resample_ctx)
+            sws_freeContext(img_resample_ctx);
     }
     
     
@@ -218,7 +232,10 @@ class TranscoderTracker {
 static TranscoderTracker tracker;
 
 
-static bool initWithBytesThrowNonZero(int err, const char *msg, TranscoderState *state, JNIEnv *env){
+// --------------- Internal Functions ---------------
+
+static bool initWithBytesThrowNonZero(int err, const char *msg, TranscoderState *state, JNIEnv *env)
+{
     
     // Do error catch.
     if(err != 0)
@@ -236,185 +253,6 @@ static bool initWithBytesThrowNonZero(int err, const char *msg, TranscoderState 
         return false; // No errors here!
 }
 
-/*
- * Class:     com_tstordyallison_ffmpegmr_Transcoder
- * Method:    initWithBytes
- * Signature: (JJ[J[B)I
- */
-JNIEXPORT jint JNICALL Java_com_tstordyallison_ffmpegmr_Transcoder_initWithBytes
-(JNIEnv *env, jobject obj, jlong chunk_tb_num, jlong chunk_tb_den, jlongArray chunk_points, jbyteArray data){
-
-    // Init state;
-    int err = 0;
-    TranscoderState *state = new TranscoderState;
-    
-    // Copy the chunk over into memory from the JVM.
-    state->data_size = env->GetArrayLength(data);
-    state->data = (uint8_t *)malloc(sizeof(jbyte) * state->data_size);
-    env->GetByteArrayRegion(data, 0, (jint)state->data_size, (jbyte *)state->data);
-    env->DeleteLocalRef(data);
-    
-    // Copy over the chunk points into memory from the JVM.
-    state->chunk_points_size = env->GetArrayLength(chunk_points);
-    state->chunk_points = (long *)malloc(sizeof(jlong)* state->chunk_points_size);
-    state->encoder_pts_offsets = (long *)malloc(sizeof(jlong)* state->chunk_points_size);
-    env->GetLongArrayRegion(chunk_points, 0, (jint)state->chunk_points_size, (jlong *)state->chunk_points);
-    env->DeleteLocalRef(chunk_points);
-    
-    state->chunk_tb = (AVRational){chunk_tb_num, chunk_tb_den};
-    
-    // Zero the offsets.
-    for(int i = 0; i < state->chunk_points_size; i++) 
-        state->encoder_pts_offsets[i]=0;
-    
-    // Go through the data and identify the TPL images that we are going to read.
-    tpl_gather_image_list(state->data, state->data_size, &(state->image_list), &(state->image_list_size));
-    
-    // Get the decoder info from the chunk header.
-    TPLImageRef *header = &(state->image_list[state->image_cursor]);
-    if((err = read_avstream_chunk_as_cc_from_memory(header->data, header->size, &(state->decoder), &(state->input_tb), &(state->input_frame_rate), &(state->input_aspect_ratio))) != 0)
-    {
-        throw_new_exception(env, "Init failed - reading header TPL image from data.");
-        return err;
-    }
-    state->image_cursor += 1;
-    
-    // Setup the decoder (we just get raw data from the TPL read).
-    AVCodec *decoder_codec = avcodec_find_decoder(state->decoder->codec_id);
-    if(decoder_codec != NULL)
-    {
-        AVDictionary *copts = NULL;
-        if(initWithBytesThrowNonZero(avcodec_open2(state->decoder, decoder_codec, &copts), "Failed to open decoder codec.", state, env)) return -1;
-    }
-    else
-    {
-        throw_new_exception(env, "Init failed - loading decoder.");
-        return err;
-    }
-    
-    // Setup our encoder, and init our raw structs. For now this is for either H.264 or AAC.
-    switch (state->decoder->codec_type) {
-        case AVMEDIA_TYPE_VIDEO:
-        {
-            AVCodec *encoder_codec = avcodec_find_encoder(CODEC_ID_H264);
-            if(encoder_codec != NULL)
-            {
-                AVDictionary *copts = NULL;
-                state->encoder = avcodec_alloc_context3(encoder_codec);
-                state->encoder->flags |= CODEC_FLAG_GLOBAL_HEADER;
-                state->encoder->gop_size = 250;
-                state->encoder->keyint_min = 2;
-                state->encoder->max_b_frames = 16;
-                //state->encoder->bit_rate = state->decoder->bit_rate;
-                av_dict_set(&copts, "crf", "21", 0);
-                state->encoder->sample_aspect_ratio = state->input_aspect_ratio;
-                state->encoder->width = state->decoder->width;
-                state->encoder->height = state->decoder->height;
-                state->encoder->pix_fmt = state->decoder->pix_fmt;
-                state->encoder->time_base = (AVRational){state->input_frame_rate.den,state->input_frame_rate.num};
-                
-                // Print out the new values.
-                if(DEBUG) {
-                    fprintf(stderr, "Packet  (st) tb: %d/%d (1/=%2.2f)\n", state->input_tb.num, state->input_tb.den, (float)state->input_tb.den/state->input_tb.num);
-                    fprintf(stderr, "Decoder (cc) tb: %d/%d (1/=%2.2f)\n", state->decoder->time_base.num, state->decoder->time_base.den, (float)state->decoder->time_base.den/state->decoder->time_base.num);
-                    fprintf(stderr, "Encoder (cc) tb: %d/%d (1/=%2.2f)\n", state->encoder->time_base.num, state->encoder->time_base.den, (float)state->encoder->time_base.den/state->encoder->time_base.num);
-                }
-                
-                if(initWithBytesThrowNonZero(avcodec_open2(state->encoder, encoder_codec, &copts), "Error opening encoder codec.", state, env)) return -1;
-
-                
-                // Chunk point warning.
-                if(state->chunk_points_size > 0)
-                    fprintf(stderr, "WARNING: Chunk points in video are experimental.\n");
-            }
-            else
-            {
-                throw_new_exception(env, "Init failed - loading encoder H264.");
-                return err;
-            }
-            
-            break;
-        }
-        case AVMEDIA_TYPE_AUDIO:
-        {
-            AVCodec *encoder_codec = avcodec_find_encoder(CODEC_ID_AAC);
-            if(encoder_codec != NULL)
-            {
-                AVDictionary *copts= NULL;
-                state->encoder = avcodec_alloc_context3(encoder_codec);
-                state->encoder->flags |= CODEC_FLAG_GLOBAL_HEADER;
-                state->encoder->bit_rate = 128000;
-                state->encoder->sample_fmt = state->decoder->sample_fmt;
-                state->encoder->sample_rate = state->decoder->sample_rate;
-                state->encoder->channels = state->decoder->channels;
-                state->encoder->time_base = state->decoder->time_base;
-                
-                // Print out the new values.
-                if(DEBUG) {
-                    fprintf(stderr, "Packet  (st) tb: %d/%d (1/=%2.2f)\n", state->input_tb.num, state->input_tb.den, (float)state->input_tb.den/state->input_tb.num);
-                    fprintf(stderr, "Decoder (cc) tb: %d/%d (1/=%2.2f)\n", state->decoder->time_base.num, state->decoder->time_base.den, (float)state->decoder->time_base.den/state->decoder->time_base.num);
-                    fprintf(stderr, "Encoder (cc) tb: %d/%d (1/=%2.2f)\n", state->encoder->time_base.num, state->encoder->time_base.den, (float)state->encoder->time_base.den/state->encoder->time_base.num);
-                }
-                
-                if(initWithBytesThrowNonZero(avcodec_open2(state->encoder, encoder_codec, &copts), "Error opening encoder codec.", state, env)) return -1;
-
-            }
-            else
-            {
-                throw_new_exception(env, "Init failed - loading encoder AAC.");
-                return err;
-            }
-            
-            break;
-        }
-        default:
-            throw_new_exception(env, "Init failed - invalid stream. Audio and video only.");
-            return err;
-    }
-    
-    // Choose the time base for the stream chunkpoints to use.
-    AVRational chunk_time_base;
-    switch (state->decoder->codec_type) {
-        case AVMEDIA_TYPE_VIDEO:
-        {   
-            chunk_time_base = state->encoder->time_base;
-            break;
-        }
-        case AVMEDIA_TYPE_AUDIO:
-        {   
-            chunk_time_base = state->decoder->time_base;
-            break;
-        }
-        default:
-        {    
-            chunk_time_base = state->input_tb;
-            break;
-        }
-    }
-    
-    
-    // Convert the chunkpoint timestamps to the same as the time base for the chunk.
-    AVRational chunk_tb = {chunk_tb_num, chunk_tb_den};
-    for(int i = 0; i < state->chunk_points_size; i++)
-    {   
-        if(DEBUG_PRINT)
-        {
-            fprintf(stderr, "Rescaling TS: %ld from %d/%d to %d/%d = ", state->chunk_points[i], chunk_tb.num, chunk_tb.den, chunk_time_base.num, chunk_time_base.den);
-            
-        }
-        state->chunk_points[i] = av_rescale_q(state->chunk_points[i], chunk_tb, chunk_time_base);
-        if(DEBUG_PRINT)
-        {
-            fprintf(stderr, "%ld\n", state->chunk_points[i]);
-        
-        }
-    }
-    
-    // All done, add it to the register. 
-    tracker.registerObjectState(env, obj, state);
-    return 0;
-}
-
 static void generate_silence(uint8_t* buf, enum AVSampleFormat sample_fmt, size_t size)
 {
     int fill_char = 0x00;
@@ -422,7 +260,6 @@ static void generate_silence(uint8_t* buf, enum AVSampleFormat sample_fmt, size_
         fill_char = 0x80;
     memset(buf, fill_char, size);
 }
-
 
 static void getNextPacket_tidy(TranscoderState *state, int err)
 {
@@ -435,6 +272,58 @@ static void getNextPacket_tidy(TranscoderState *state, int err)
         fprintf(stderr, "Number of frames demuxed: %d\n", state->demux_frame_count);
         fprintf(stderr, "Number of frames decoded: %d\n", state->decoder_frame_count);
         fprintf(stderr, "Number of frames encoded: %d\n", state->encoder_frame_count);
+    }
+}
+
+static void video_resample(TranscoderState *state)
+{
+    AVCodecContext *enc = state->encoder;
+    AVFrame *in_picture = state->raw_video;
+    
+    int resample_changed = state->resample_width   != in_picture->width  ||
+                           state->resample_height  != in_picture->height ||
+                           state->resample_pix_fmt != in_picture->format;
+    
+    if (resample_changed) {
+        state->resample_width   = in_picture->width;
+        state->resample_height  = in_picture->height;
+        state->resample_pix_fmt = in_picture->format;
+    }
+    
+    state->resample =  in_picture->width   != enc->width  ||
+                       in_picture->height  != enc->height ||
+                       in_picture->format  != enc->pix_fmt;
+    
+    if (state->resample) {
+    
+        if (!state->img_resample_ctx || resample_changed) {
+            // Get a new scaler context and bin the old one.
+            sws_freeContext(state->img_resample_ctx);
+            state->img_resample_ctx = sws_getContext(in_picture->width, in_picture->height, (enum PixelFormat)in_picture->format,
+                                                     enc->width, enc->height, enc->pix_fmt,
+                                                     SWS_BILINEAR, NULL, NULL, NULL);
+            if (state->img_resample_ctx == NULL) {
+                av_log(NULL, AV_LOG_FATAL, "Cannot get resampling context\n");
+            }
+        }
+        
+        // Init our new out picture.
+        AVFrame *new_frame = avcodec_alloc_frame();
+        avcodec_get_frame_defaults(new_frame);
+        avpicture_alloc((AVPicture *)new_frame, enc->pix_fmt, enc->width, enc->height);
+                
+        // Resample.
+        sws_scale(state->img_resample_ctx, in_picture->data, in_picture->linesize, 0, state->resample_height, new_frame->data, new_frame->linesize);
+        
+        // Copy some data into our new frame.
+        new_frame->width = enc->width;
+        new_frame->height = enc->height;
+        new_frame->format = enc->pix_fmt;
+        new_frame->pts = in_picture->pts;
+        
+        // Replace raw video.
+        avpicture_free((AVPicture *)&state->raw_video);
+        state->raw_video = new_frame;
     }
 }
 
@@ -569,8 +458,15 @@ static int decode_packet(JNIEnv *env, TranscoderState *state)
                     }
                     else
                     {
-                        if(state->decoder_flushing)
+                        if(state->decoder_flushing){
+                            if(state->raw_video == NULL && output_frame){
+                                free(output_frame);
+                                output_frame = NULL;
+                            }
+
                             return -1; // End of the stream.
+                        }
+                            
                     }
                 }
                 else{
@@ -777,7 +673,9 @@ static int decode_packet(JNIEnv *env, TranscoderState *state)
                         throw_new_exception(env, "Read failed - decoder failed to decode audio packet.");
                         return -1;
                     }
-
+                    
+                    // Free the decoded frame struct (the data will live on to the encoder).
+                    av_freep(&decoded_frame);
                 };
                 
             }
@@ -795,6 +693,210 @@ static int decode_packet(JNIEnv *env, TranscoderState *state)
     return 0;
 }
 
+
+// --------------- JNI Functions ---------------
+
+/*
+ * Class:     com_tstordyallison_ffmpegmr_Transcoder
+ * Method:    initWithBytes
+ * Signature: (JJ[J[B)I
+ */
+JNIEXPORT jint JNICALL Java_com_tstordyallison_ffmpegmr_Transcoder_initWithBytes
+(JNIEnv *env, jobject obj, jlong chunk_tb_num, jlong chunk_tb_den, jlongArray chunk_points, jbyteArray data, 
+ jdouble video_res_scale, jdouble video_crf, jint video_bitrate, jint audio_bitrate){
+    
+    // Init state;
+    int err = 0;
+    TranscoderState *state = new TranscoderState;
+    
+    // Check input.
+    if(video_res_scale <= 0)
+        video_res_scale = 1;
+    
+    if(video_crf <= 0)
+        video_crf = 21;
+    
+    if(video_bitrate <= 0)
+        video_bitrate = 512000;
+    
+    if(audio_bitrate <= 0)
+        audio_bitrate = 64000;
+    
+    if(video_crf > 0)
+        video_bitrate = 0;
+
+    
+    // Copy the chunk over into memory from the JVM.
+    state->data_size = env->GetArrayLength(data);
+    state->data = (uint8_t *)malloc(sizeof(jbyte) * state->data_size);
+    env->GetByteArrayRegion(data, 0, (jint)state->data_size, (jbyte *)state->data);
+    env->DeleteLocalRef(data);
+    
+    // Copy over the chunk points into memory from the JVM.
+    state->chunk_points_size = env->GetArrayLength(chunk_points);
+    state->chunk_points = (long *)malloc(sizeof(jlong)* state->chunk_points_size);
+    state->encoder_pts_offsets = (long *)malloc(sizeof(jlong)* state->chunk_points_size);
+    env->GetLongArrayRegion(chunk_points, 0, (jint)state->chunk_points_size, (jlong *)state->chunk_points);
+    env->DeleteLocalRef(chunk_points);
+    
+    state->chunk_tb = (AVRational){chunk_tb_num, chunk_tb_den};
+    
+    // Zero the offsets.
+    for(int i = 0; i < state->chunk_points_size; i++) 
+        state->encoder_pts_offsets[i]=0;
+    
+    // Go through the data and identify the TPL images that we are going to read.
+    tpl_gather_image_list(state->data, state->data_size, &(state->image_list), &(state->image_list_size));
+    
+    // Get the decoder info from the chunk header.
+    TPLImageRef *header = &(state->image_list[state->image_cursor]);
+    if((err = read_avstream_chunk_as_cc_from_memory(header->data, header->size, &(state->decoder), &(state->input_tb), &(state->input_frame_rate), &(state->input_aspect_ratio))) != 0)
+    {
+        throw_new_exception(env, "Init failed - reading header TPL image from data.");
+        return err;
+    }
+    state->image_cursor += 1;
+    
+    // Setup the decoder (we just get raw data from the TPL read).
+    AVCodec *decoder_codec = avcodec_find_decoder(state->decoder->codec_id);
+    if(decoder_codec != NULL)
+    {
+        AVDictionary *copts = NULL;
+        if(initWithBytesThrowNonZero(avcodec_open2(state->decoder, decoder_codec, &copts), "Failed to open decoder codec.", state, env)) return -1;
+    }
+    else
+    {
+        throw_new_exception(env, "Init failed - loading decoder.");
+        return err;
+    }
+    
+    // Setup our encoder, and init our raw structs. For now this is for either H.264 or AAC.
+    switch (state->decoder->codec_type) {
+        case AVMEDIA_TYPE_VIDEO:
+        {
+            AVCodec *encoder_codec = avcodec_find_encoder(CODEC_ID_H264);
+            if(encoder_codec != NULL)
+            {
+                AVDictionary *copts = NULL;
+                state->encoder = avcodec_alloc_context3(encoder_codec);
+                state->encoder->flags |= CODEC_FLAG_GLOBAL_HEADER;
+                state->encoder->gop_size = 250;
+                state->encoder->keyint_min = 2;
+                state->encoder->max_b_frames = 16;
+                if(video_crf){
+                    char buf[10];
+                    sprintf(buf, "%2.2f", video_crf);
+                    av_dict_set(&copts, "crf", buf, 0);
+                }
+                else
+                    state->encoder->bit_rate = video_bitrate;
+                state->encoder->sample_aspect_ratio = state->input_aspect_ratio;
+                state->encoder->width = lround(state->decoder->width*video_res_scale);
+                state->encoder->height = lround(state->decoder->height*video_res_scale);
+                state->encoder->pix_fmt = state->decoder->pix_fmt;
+                state->encoder->time_base = (AVRational){state->input_frame_rate.den,state->input_frame_rate.num};
+                
+                // Print out the new values.
+                if(DEBUG) {
+                    fprintf(stderr, "Packet  (st) tb: %d/%d (1/=%2.2f)\n", state->input_tb.num, state->input_tb.den, (float)state->input_tb.den/state->input_tb.num);
+                    fprintf(stderr, "Decoder (cc) tb: %d/%d (1/=%2.2f)\n", state->decoder->time_base.num, state->decoder->time_base.den, (float)state->decoder->time_base.den/state->decoder->time_base.num);
+                    fprintf(stderr, "Encoder (cc) tb: %d/%d (1/=%2.2f)\n", state->encoder->time_base.num, state->encoder->time_base.den, (float)state->encoder->time_base.den/state->encoder->time_base.num);
+                }
+                
+                if(initWithBytesThrowNonZero(avcodec_open2(state->encoder, encoder_codec, &copts), "Error opening encoder codec.", state, env)) return -1;
+                
+                
+                // Chunk point warning.
+                if(state->chunk_points_size > 0)
+                    fprintf(stderr, "WARNING: Chunk points in video are experimental.\n");
+            }
+            else
+            {
+                throw_new_exception(env, "Init failed - loading encoder H264.");
+                return err;
+            }
+            
+            break;
+        }
+        case AVMEDIA_TYPE_AUDIO:
+        {
+            AVCodec *encoder_codec = avcodec_find_encoder(CODEC_ID_AAC);
+            if(encoder_codec != NULL)
+            {
+                AVDictionary *copts= NULL;
+                state->encoder = avcodec_alloc_context3(encoder_codec);
+                state->encoder->flags |= CODEC_FLAG_GLOBAL_HEADER;
+                state->encoder->bit_rate = audio_bitrate * state->decoder->channels;
+                state->encoder->sample_fmt = state->decoder->sample_fmt;
+                state->encoder->sample_rate = state->decoder->sample_rate;
+                state->encoder->channels = state->decoder->channels;
+                state->encoder->time_base = state->decoder->time_base;
+                
+                // Print out the new values.
+                if(DEBUG) {
+                    fprintf(stderr, "Packet  (st) tb: %d/%d (1/=%2.2f)\n", state->input_tb.num, state->input_tb.den, (float)state->input_tb.den/state->input_tb.num);
+                    fprintf(stderr, "Decoder (cc) tb: %d/%d (1/=%2.2f)\n", state->decoder->time_base.num, state->decoder->time_base.den, (float)state->decoder->time_base.den/state->decoder->time_base.num);
+                    fprintf(stderr, "Encoder (cc) tb: %d/%d (1/=%2.2f)\n", state->encoder->time_base.num, state->encoder->time_base.den, (float)state->encoder->time_base.den/state->encoder->time_base.num);
+                }
+                
+                if(initWithBytesThrowNonZero(avcodec_open2(state->encoder, encoder_codec, &copts), "Error opening encoder codec.", state, env)) return -1;
+                
+            }
+            else
+            {
+                throw_new_exception(env, "Init failed - loading encoder AAC.");
+                return err;
+            }
+            
+            break;
+        }
+        default:
+            throw_new_exception(env, "Init failed - invalid stream. Audio and video only.");
+            return err;
+    }
+    
+    // Choose the time base for the stream chunkpoints to use.
+    AVRational chunk_time_base;
+    switch (state->decoder->codec_type) {
+        case AVMEDIA_TYPE_VIDEO:
+        {   
+            chunk_time_base = state->encoder->time_base;
+            break;
+        }
+        case AVMEDIA_TYPE_AUDIO:
+        {   
+            chunk_time_base = state->decoder->time_base;
+            break;
+        }
+        default:
+        {    
+            chunk_time_base = state->input_tb;
+            break;
+        }
+    }
+    
+    
+    // Convert the chunkpoint timestamps to the same as the time base for the chunk.
+    AVRational chunk_tb = {chunk_tb_num, chunk_tb_den};
+    for(int i = 0; i < state->chunk_points_size; i++)
+    {   
+        if(DEBUG_PRINT)
+        {
+            fprintf(stderr, "Rescaling TS: %ld from %d/%d to %d/%d = ", state->chunk_points[i], chunk_tb.num, chunk_tb.den, chunk_time_base.num, chunk_time_base.den);
+            
+        }
+        state->chunk_points[i] = av_rescale_q(state->chunk_points[i], chunk_tb, chunk_time_base);
+        if(DEBUG_PRINT)
+        {
+            fprintf(stderr, "%ld\n", state->chunk_points[i]);
+            
+        }
+    }
+    
+    // All done, add it to the register. 
+    tracker.registerObjectState(env, obj, state);
+    return 0;
+}
 
 /*
  * Class:     com_tstordyallison_ffmpegmr_Transcoder
@@ -819,6 +921,8 @@ JNIEXPORT jobject JNICALL Java_com_tstordyallison_ffmpegmr_Transcoder_getNextPac
         switch (state->encoder->codec_type) {
             case AVMEDIA_TYPE_VIDEO:
             {
+                //return NULL;
+                
                 int got_pkt = 0;
                 while(!got_pkt)
                 {
@@ -870,11 +974,18 @@ JNIEXPORT jobject JNICALL Java_com_tstordyallison_ffmpegmr_Transcoder_getNextPac
                         
                         // Increment the PTS.
                         state->encoder_pts += 1;
+                        
+                        // Perform any required resampling (resizing of the frame resolution to match the encoder if needed.).
+                        video_resample(state);
                     }
-                    
+    
                     // Encode the new frame.
                     ret = avcodec_encode_video2(state->encoder, &output_pkt, state->raw_video, &got_pkt);
                 
+                    // Dealloc the data if it was a resample.
+                    if(state->resample && state->raw_video)
+                        avpicture_free((AVPicture *)state->raw_video);
+                    
                     // Act on the return value.
                     if(ret == 0){
                         if(got_pkt)
@@ -938,6 +1049,7 @@ JNIEXPORT jobject JNICALL Java_com_tstordyallison_ffmpegmr_Transcoder_getNextPac
                     // Advance the decoder/pull the next frame through.
                     if(decode_packet(env, state) != 0){
                         if(state->encoder->codec->capabilities & CODEC_CAP_DELAY)
+                            
                             state->raw_audio = NULL;
                         else
                         {
@@ -948,6 +1060,10 @@ JNIEXPORT jobject JNICALL Java_com_tstordyallison_ffmpegmr_Transcoder_getNextPac
                     
                     // Encode the new frame.
                     ret = avcodec_encode_audio2(state->encoder, &output_pkt, state->raw_audio, &got_pkt);
+                    
+                    // Free the raw audio - FIXME - There is probably a better way to free this. But for now - we just do it internally.
+                    if(state->raw_audio)
+                        av_freep(&(state->raw_audio->data[0]));
                     
                     if(ret == 0){
                         if(got_pkt)
@@ -1109,7 +1225,8 @@ JNIEXPORT jint JNICALL Java_com_tstordyallison_ffmpegmr_Transcoder_close
  * Method:    getStreamData
  * Signature: (I)[B
  */
-JNIEXPORT jbyteArray JNICALL Java_com_tstordyallison_ffmpegmr_Transcoder_getStreamData(JNIEnv *env, jobject obj){
+JNIEXPORT jbyteArray JNICALL Java_com_tstordyallison_ffmpegmr_Transcoder_getStreamData
+(JNIEnv *env, jobject obj){
     
     TranscoderState *state = tracker.getObjectState(env, obj);
     if(state != NULL)

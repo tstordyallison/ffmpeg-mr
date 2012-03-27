@@ -43,6 +43,9 @@ struct DemuxState {
     int stream_io; 
     uint8_t *stream_buffer;
     InputStreamOpaque stream_info;
+   
+    long pts_offset;
+    long pts_last;
     
     DemuxState(){
         this->fmt_ctx = NULL;
@@ -56,6 +59,7 @@ struct DemuxState {
         this->dpkt_ctr = NULL;
         this->common_tb = NULL;
         this->tb_lcm = -1;
+        this->pts_last = 0;
         
         this->stream_io = 0;
         this->stream_buffer = NULL;
@@ -385,6 +389,7 @@ JNIEXPORT jint JNICALL Java_com_tstordyallison_ffmpegmr_Demuxer_initDemuxWithStr
 (JNIEnv *env, jobject obj, jobject stream, jlong length){
 
     // Init state and add them to the object register.
+    int err = 0;
     DemuxState *state = new DemuxState; 
     state->stream_io = 1;
     
@@ -399,10 +404,17 @@ JNIEXPORT jint JNICALL Java_com_tstordyallison_ffmpegmr_Demuxer_initDemuxWithStr
     // Set and open the format context.
     state->fmt_ctx = avformat_alloc_context();
     state->fmt_ctx->pb = input_stream;
-    avformat_open_input(&state->fmt_ctx, "", NULL, NULL);
     
+    if ((err = avformat_open_input(&state->fmt_ctx, "", NULL, NULL)) < 0) {
+        print_file_error("Java stream read error:", err);
+        return -1;
+    }
+
     // Do some more probing.
-    avformat_find_stream_info(state->fmt_ctx, NULL);
+    if ((err = avformat_find_stream_info(state->fmt_ctx, NULL)) < 0) {
+        printf("Failed to open streams in java input stream, error %d\n",  err);
+        return -1;
+    }
     
     // Run the actual init.
     int ret = init_demux(env, obj, state);
@@ -501,11 +513,14 @@ JNIEXPORT jobject JNICALL Java_com_tstordyallison_ffmpegmr_Demuxer_getNextChunkI
         ret = av_read_frame(state->fmt_ctx, &state->pkt);
         if(ret != 0) return NULL;
         
-        // Skip over any invalid streams.
-        while(state->stream_data_sizes[state->pkt.stream_index] == 0){
+        // Skip over any invalid streams/ones that appeared out of the blue (this can sometime be subtitle etc).
+        while(state->pkt.stream_index >= state->stream_count || state->stream_data_sizes[state->pkt.stream_index] == 0){
             ret = av_read_frame(state->fmt_ctx, &state->pkt);
             if(ret != 0) return NULL;
         }
+        
+        // Make sure that this isn't a VOB that has reset its TS back to 0.
+        //if(pts_last < 
         
         // Temp for the AVPacket TPL.
         uint8_t *pkt_tpl_data;
@@ -513,8 +528,6 @@ JNIEXPORT jobject JNICALL Java_com_tstordyallison_ffmpegmr_Demuxer_getNextChunkI
         
         // Generate the TPL.
         write_avpacket_chunk_to_memory(&state->pkt, &pkt_tpl_data, &pkt_tpl_size);
-        av_free(state->pkt.data);       state->pkt.data = NULL;
-        av_free(state->pkt.side_data);  state->pkt.side_data = NULL;
                                        
         // Create the DemuxPacket object.
         jclass      dpkt_clazz = env->FindClass("com/tstordyallison/ffmpegmr/DemuxPacket");
@@ -553,6 +566,8 @@ JNIEXPORT jobject JNICALL Java_com_tstordyallison_ffmpegmr_Demuxer_getNextChunkI
         env->SetByteArrayRegion(dataArray, 0, pkt_tpl_size, (jbyte *)pkt_tpl_data);
         env->SetObjectField(dpkt, data, dataArray);
         
+        // Clean up.
+        av_free_packet(&state->pkt);
         av_init_packet(&state->pkt);
         free(pkt_tpl_data); pkt_tpl_data = NULL;
         

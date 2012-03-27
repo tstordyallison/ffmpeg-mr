@@ -28,17 +28,15 @@ public class ChunkerThread extends Thread {
 	
 	public class ChunkBuffers {
 		
-		private long 					endTS						= 0;
-		private long 					endTSNum					= 0;
-		private long 					endTSDen					= 0;
+		private ChunkID					endTSChunkID				= new ChunkID();
 		private long 					packetCount					= 0;
-		
+		private List<ChunkID>			chunkHistory				= new ArrayList<ChunkID>(100);
 		private List<Boolean>           streamFirstChunk			= new ArrayList<Boolean>(demuxer.getStreamCount()); 
 		private List<ByteBuffer> 		streamHeaders 				= new ArrayList<ByteBuffer>(demuxer.getStreamCount()); 		
 		private List<List<DemuxPacket>> currentChunks				= new ArrayList<List<DemuxPacket>>(demuxer.getStreamCount()); 
 		private List<Integer> 			currentChunksSizes 			= new ArrayList<Integer>(demuxer.getStreamCount()); 			
 		private List<Integer> 			endMarkers 					= new ArrayList<Integer>(demuxer.getStreamCount()); 
-		private Set<Long> 				chunkPoints 				= new HashSet<Long>(); // Make me a better data structure.
+		private Set<Long> 				chunkPoints 				= new HashSet<Long>();
 		
 		public ChunkBuffers()
 		{
@@ -60,13 +58,19 @@ public class ChunkerThread extends Thread {
 			// Mark this if it is a split point.
 			if(currentPacket.splitPoint)
 				endMarkers.set(currentPacket.streamID, currentChunks.get(currentPacket.streamID).size()-1);
+	
 		}
 
 		public long getBufferSize(int streamID) {
 			return streamHeaders.get(streamID).limit() + currentChunksSizes.get(streamID);
 		}
 
-		public Chunk drainChunk(int streamID) {
+		public Chunk drainChunk(int streamID)
+		{
+			return drainChunk(streamID, true);
+		}
+		
+		public Chunk drainChunk(int streamID, boolean monotonicityCheck) {
 			
 			// Get stream state.
 			List<DemuxPacket> chunkBuffer = currentChunks.get(streamID);
@@ -85,43 +89,92 @@ public class ChunkerThread extends Thread {
 			
 			// Build a new chunk ID.
 			ChunkID chunkID = new ChunkID();
-			chunkID.streamID = streamID;
-			chunkID.streamDuration = streamDuration;
-			chunkID.startTS = chunkBuffer.get(0).ts;
-			chunkID.tbDen =  chunkBuffer.get(0).tb_den;
-			chunkID.tbNum =  chunkBuffer.get(0).tb_num;
+			chunkID.setStreamID(streamID);
+			chunkID.setStreamDuration(streamDuration);
+			chunkID.setStartTS(chunkBuffer.get(0).ts);
+			chunkID.setTbDen(chunkBuffer.get(0).tb_den);
+			chunkID.setTbNum(chunkBuffer.get(0).tb_num);
 			if(endMarker == chunkBuffer.size()){
 				// This is just an estimate. The last packet in the GOP will probably not be the last PTS.
 				DemuxPacket lastPacket = chunkBuffer.get(endMarker-1);
-				chunkID.endTS = lastPacket.ts + lastPacket.duration; 
+				chunkID.setEndTS(lastPacket.ts + lastPacket.duration); 
 			}
 			else
-				chunkID.endTS = chunkBuffer.get(endMarker).ts;
+				chunkID.setEndTS(chunkBuffer.get(endMarker).ts);
 			
 			// Figure out the chunkNumber (this is used for tracking the chunks around the MR).
 			if(streamFirstChunk.get(streamID)){
-				chunkID.chunkNumber = 0; // This fixes the corner case where the first startTS is not 0 (e.g audio post-roll).
+				chunkID.setChunkNumber(0); // This fixes the corner case where the first startTS is not 0 (e.g audio post-roll).
 				streamFirstChunk.set(streamID, false);
 			}
 			else
-				chunkID.chunkNumber = chunkID.getMillisecondsStartTs(); // This should always be correct as it will be a key frame.
-			
-			if(endTS < chunkID.endTS){
-				endTS = chunkID.endTS;
-				endTSNum = chunkID.tbNum;
-				endTSDen = chunkID.tbDen;
-			}
+				chunkID.setChunkNumber(chunkID.getMillisecondsStartTs()); // This should always be correct as it will be a key frame.
 			
 			// Find all of the output chunk points that apply to this chunk.
 			for(Long point : chunkPoints)
 			{
-				if(chunkID.startTS < point && point < chunkID.endTS)
-					chunkID.outputChunkPoints.add(point);
+				if(chunkID.getStartTS() < point && point < chunkID.getEndTS())
+					chunkID.getOutputChunkPoints().add(point);
 			}
 			
 			// Add this to our chunk points going forward.
 			if(endMarker != chunkBuffer.size())
-				chunkPoints.add(chunkBuffer.get(endMarker).ts);
+				chunkPoints.add(chunkID.getEndTS());
+			
+			// Sort the chunk points.
+			Collections.sort(chunkID.getOutputChunkPoints());
+			
+			// ------------------------------------- Monotonicity Fixes -----------------------------------------------
+			
+			// Go through all of the previously output chunks (we might be able to make this a tighter bound, but for now
+			// we're being thorough), and see if our end ts lies in their output ts range (the case where our start lies 
+			// in the range will have had this same code run when it was output where it's end = our start), and if it does
+			// we attempt to modify its chunk point list before it is written to the disk. If it has already been written, 
+			// we will throw and exception and fail, as not having this time stamp in place would break the remuxer.
+			
+			// TODO: try and make this a smaller search (it is very unlikely that chunks a long time ago will actually need checked). 
+			if(monotonicityCheck)
+				for(ChunkID testChunk : chunkHistory)
+				{
+					if(testChunk.getStartTS() < chunkID.getEndTS() && chunkID.getEndTS() < testChunk.getEndTS()){
+						if(!testChunk.getOutputChunkPoints().contains(chunkID.getEndTS())){	
+							if(testChunk.isModifiable()){
+								// We need to add this chunk point!
+								testChunk.getOutputChunkPoints().add(chunkID.getEndTS());
+								Collections.sort(testChunk.getOutputChunkPoints());
+							}
+							else{
+								Printer.println("Failure chunk:" + testChunk.toString());
+								Printer.println("Current chunk:" + chunkID.toString());
+								throw new RuntimeException("A previously allocated chunk could not be modified to correct its chunk point list.");
+							}
+						}
+					}
+				}
+	
+			// ------------------------------------- Monotonicity Checks ------------------------------------------------
+			
+			// Check the monotonicity on the timestamps to ensure we havent missed out any chunk points.
+			if(		monotonicityCheck &&  
+					endTSChunkID.getMillisecondsEndTs() > chunkID.getMillisecondsEndTs() && 
+					!endTSChunkID.getOutputChunkPoints().contains(chunkID.getEndTS())){
+				
+				// This means that we have already sent a chunk off that has a greater TS that this one.
+				// We are now in a state where we could fail to remux all of the streams properly in the 
+				// reducer. 
+
+				Printer.println("Failure chunk:" + endTSChunkID.toString());
+				Printer.println("Current chunk:" + chunkID.toString());
+				Printer.println(endTSChunkID.getMillisecondsEndTs() + " > " + chunkID.getMillisecondsEndTs());
+				throw new RuntimeException("This file has TS monoticity errors and cannot be chunked.");
+			}
+			
+			// Store this as a valid end for now.
+			if(endTSChunkID.getEndTS() < chunkID.getEndTS()){
+				endTSChunkID = chunkID;
+			}
+				
+			// ---------------------------------------------------------------------------------------------------------
 			
 			// Build the chunk data.
 			ByteBuffer header = streamHeaders.get(streamID);
@@ -141,8 +194,8 @@ public class ChunkerThread extends Thread {
 			currentChunksSizes.set(streamID, currentChunksSizes.get(streamID) - actualChunkSize);
 			endMarkers.set(streamID, -1);
 			
-			// Sort the chunk points.
-			Collections.sort(chunkID.outputChunkPoints);
+			// Take history of this chunk having been drained.
+			chunkHistory.add(chunkID);
 			
 			// Return the new chunk (this also calls retain on the data so we dealloc correctly).
 			return new Chunk(chunkID, chunkData);
@@ -177,11 +230,13 @@ public class ChunkerThread extends Thread {
 		
 	}
 
+	public static double AUDIO_CHUNK_SIZE_FACTOR = 2;
+	public static double VIDEO_CHUNK_SIZE_FACTOR = 1;
 	public static boolean FORCE_STREAM = true;
 	
 	private BlockingQueue<Chunk> chunkQ;
 	private FSDataInputStream in;
-	private long blockSize;
+	private long[] blockSizes;
 	
 	private Demuxer demuxer;
 	private ChunkBuffers chunkBuffers;
@@ -196,7 +251,6 @@ public class ChunkerThread extends Thread {
 	public void initDemuxer(Configuration config, BlockingQueue<Chunk> chunkQ, String inputUri, long blockSize) throws IOException, URISyntaxException
 	{	
 		this.chunkQ = chunkQ;
-		this.blockSize = blockSize;
 		
 		if(FORCE_STREAM || !inputUri.startsWith("file://")){
 			Printer.println("Reading using Hadoop FS.");
@@ -216,10 +270,28 @@ public class ChunkerThread extends Thread {
 			Printer.println("Reading using native file IO.");
 			this.demuxer = new Demuxer(new File(inputUri.substring(7)));
 		}
+		
 		this.chunkBuffers = new ChunkBuffers();
 		this.streamDuration = this.demuxer.getDurationMs();
+		
 		if(this.streamDuration > 0)
-			Printer.println("File duration: " + PeriodFormat.getDefault().print(new Period(this.streamDuration)));
+			Printer.println("File duration esitimate: " + PeriodFormat.getDefault().print(new Period(this.streamDuration)));
+		
+		blockSizes = new long[this.demuxer.getStreamCount()];
+		for(int i = 0; i < this.demuxer.getStreamCount(); i++)
+		{
+			switch (this.demuxer.getStreamMediaType(i)) {
+			case AUDIO:
+				blockSizes[i] = (long)(AUDIO_CHUNK_SIZE_FACTOR * blockSize);
+				break;
+			case VIDEO:
+				blockSizes[i] = (long)(VIDEO_CHUNK_SIZE_FACTOR * blockSize);
+				break;
+			default:
+				blockSizes[i] = Long.MAX_VALUE; // This is an invalid stream - we shouldnt get any packets for it.
+				break;
+			}
+		}
 	}
 
 	@Override
@@ -233,7 +305,7 @@ public class ChunkerThread extends Thread {
 				chunkBuffers.add(currentPacket);
 				
 				// Check to see if we are now over our limit.
-				if(chunkBuffers.getBufferSize(currentPacket.streamID) > blockSize)
+				if(chunkBuffers.getBufferSize(currentPacket.streamID) > blockSizes[currentPacket.streamID])
 				{
 					Chunk chunk = chunkBuffers.drainChunk(currentPacket.streamID);
 					
@@ -241,7 +313,7 @@ public class ChunkerThread extends Thread {
 					if(chunk != null)
 						chunkQ.put(chunk); // This will block until the queue has space.
 					else
-						Printer.println("WARNING: Demuxer unable to drain chunk smaller than "  + FileUtils.humanReadableByteCount(blockSize, false) + ". Try a larger chunk size.");
+						Printer.println("WARNING: Demuxer unable to drain chunk smaller than "  + FileUtils.humanReadableByteCount(blockSizes[currentPacket.streamID], false) + ". Try a larger chunk size.");
 				}
 				
 				// Get the next packet.
@@ -252,7 +324,7 @@ public class ChunkerThread extends Thread {
 			for(int i = 0; i < demuxer.getStreamCount(); i++)
 			{
 				chunkBuffers.setMaxEndMarker(i); // This allows us to drain everything, and ignores the split point constraint.
-				Chunk chunk = chunkBuffers.drainChunk(i);
+				Chunk chunk = chunkBuffers.drainChunk(i, false);
 				if(chunk != null)
 				{
 					chunkQ.put(chunk); // This will block until the queue has space.
@@ -284,15 +356,6 @@ public class ChunkerThread extends Thread {
 	}
 	
 	public long getEndTS() {
-		return chunkBuffers.endTS;
-	}
-	
-	public long getEndTSDen() {
-		return chunkBuffers.endTSDen;
-	}
-	
-	public long getEndTSNum() {
-		return chunkBuffers.endTSNum;
-	}
-	
+		return chunkBuffers.endTSChunkID.getMillisecondsEndTs();
+	}	
 }

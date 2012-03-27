@@ -27,6 +27,13 @@ void print_file_error(const char *filename, int err)
     fprintf(stderr, "%s: %s\n", filename, errbuf_ptr);
 }
 
+void print_av_error(int err)
+{
+    char buffer[50];
+    av_strerror(err, buffer, 50);
+    printf("ffmpeg-mr Return Code: %d (%s)\n", err, buffer);
+}
+
 void throw_new_exception(JNIEnv *env, const char* msg){
     jclass err_clazz = env->FindClass("java/lang/RuntimeException");
     env->ThrowNew(err_clazz, msg);

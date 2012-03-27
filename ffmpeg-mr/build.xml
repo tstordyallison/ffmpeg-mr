@@ -9,7 +9,8 @@
                 <attribute name="Class-Path" value="."/>
             </manifest>
             <fileset dir="/Users/tom/Code/fyp/ffmpeg-mr/ffmpeg-mr" excludes="*.jnilib, lib/*, examples/*, ffmpegmr.jar"/>
-            <zipfileset excludes="META-INF/*.SF" src="/Users/tom/Code/fyp/joda-time-2.0/joda-time-2.0.jar"/>
+            <zipfileset excludes="META-INF/*.SF" src="lib/joda-time-2.0.jar"/>
+        	<zipfileset excludes="META-INF/*.SF" src="lib/gson-2.1.jar"/>
         </jar>
     </target>
 	
@@ -18,6 +19,7 @@
 			  <zipfileset dir="/Users/tom/Code/fyp/ffmpeg-mr/ffmpeg-mr" excludes="*.jnilib, lib/*, ffmpegmr.jar"/>
 			  <zipfileset excludes="META-INF/*" src="lib/joda-time-2.0.jar"/>
 			  <zipfileset excludes="META-INF/*" src="lib/mrunit-0.8.0-incubating.jar"/>
+			  <zipfileset excludes="META-INF/*.SF" src="lib/gson-2.1.jar"/>
 		</zip>          
 	</target>
 	

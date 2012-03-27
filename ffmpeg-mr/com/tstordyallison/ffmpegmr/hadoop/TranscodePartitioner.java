@@ -10,9 +10,24 @@ public class TranscodePartitioner extends Partitioner<LongWritable, Chunk> {
 
 	@Override
 	public int getPartition(LongWritable ts, Chunk chunk, int numPartitions) {
-		long partitionSize = chunk.getChunkID().streamDuration/numPartitions;
-		int partition = (int) Math.round(((double)ts.get() / partitionSize));
-		Printer.println("Chunk with TS: " + ts.get() + " allocated reducer " + partition + "/" + numPartitions);
+		int partition = getPartitionImpl(ts.get(), chunk.getChunkID().getStreamDuration(), numPartitions);
+		Printer.println("Chunk with TS: " + ts.get()+1 + " allocated reducer " + partition + "/" + numPartitions);
 		return partition;
 	}
+	
+	public static int getPartitionImpl(long chunkTs, long streamDuration, int numPartitions){
+		long partitionSize = streamDuration/numPartitions;
+		int partition = (int) Math.floor(((double)chunkTs / partitionSize));
+		return partition;
+	}
+	
+	private static void testPartition(long ts, long streamDuration, int numPartitions){
+		System.out.println("TS: " + ts + " = " + getPartitionImpl(ts, streamDuration, numPartitions));
+	}
+	
+	public static void main(String[] args){
+		testPartition(1872015, 2469790, 14);
+		testPartition(2430797, 2469790, 14);
+	}
+	
 }

@@ -13,7 +13,7 @@ import com.tstordyallison.ffmpegmr.util.FileUtils;
 public class ChunkData implements Writable {
 
 	private byte[] rawData = null; // The raw binary data that this chunk stores.
-	public int packet_count; // Number of packets stored in this chunk.
+	private int packet_count; // Number of packets stored in this chunk.
 	
 	public ChunkData()
 	{
@@ -67,6 +67,10 @@ public class ChunkData implements Writable {
 	public long getSize()
 	{
 		return rawData.length;
+	}
+	
+	public long getPacketCount() {
+		return packet_count;
 	}
 	
 	@Override

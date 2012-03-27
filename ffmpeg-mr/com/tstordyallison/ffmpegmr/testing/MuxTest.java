@@ -53,10 +53,11 @@ public class MuxTest {
 		}
 		else
 		{
-			//runReducer("file:///Users/tom/Code/fyp/example-videos/Test.mp4.mapped.seq", "/Users/tom/Code/fyp/example-videos/Test.mp4.output.seq");
+			runReducer("file:///Users/tom/Code/fyp/example-videos/Test1.wmv.seq.mapped", "/Users/tom/Code/fyp/example-videos/Test.wmv.mkv");
 			//runReducer("file:///Users/tom/Code/fyp/example-videos/TestMultiStream.m4v.mapped.seq", "file:///Users/tom/Code/fyp/example-videos/Output/TestMultiStream.m4v.mkv");
 			//runReducer("file:///Users/tom/Code/fyp/example-videos/Test.wmv.mapped.seq", "/Users/tom/Code/fyp/example-videos/Output/Test.wmv.mkv");
-			runReducer("file:///Users/tom/Code/fyp/example-videos/Test2.avi.mapped.seq", "/Users/tom/Code/fyp/downloaded-output/Test.avi.mkv/Test.avi.mkv");
+			//runReducer("file:///Users/tom/Code/fyp/example-videos/Test2.avi.mapped.seq", "/Users/tom/Code/fyp/downloaded-output/Test.avi.mkv/Test.avi.mkv");
+			//runReducer("file:///Users/tom/Code/fyp/example-videos/Test.mkv.mapped.seq", "/Users/tom/Code/fyp/downloaded-output/Test.mkv.mkv/Test.mkv.mkv");
 		}
 	}
 	
@@ -79,12 +80,12 @@ public class MuxTest {
 		// Read in all the chunks and sort them in memory.
 		HashMap<Long, List<Chunk>> groupedChunks = new HashMap<Long, List<Chunk>>();
 		while (reader.next(key, value)){
-			if(groupedChunks.get(key.chunkNumber) != null)
-				groupedChunks.get(key.chunkNumber).add(new Chunk(WritableUtils.clone(key, config), WritableUtils.clone(value, config)));
+			if(groupedChunks.get(key.getChunkNumber()) != null)
+				groupedChunks.get(key.getChunkNumber()).add(new Chunk(WritableUtils.clone(key, config), WritableUtils.clone(value, config)));
 			else
 			{
-				groupedChunks.put(key.chunkNumber, new ArrayList<Chunk>());
-				groupedChunks.get(key.chunkNumber).add(new Chunk(WritableUtils.clone(key, config), WritableUtils.clone(value, config)));
+				groupedChunks.put(key.getChunkNumber(), new ArrayList<Chunk>());
+				groupedChunks.get(key.getChunkNumber()).add(new Chunk(WritableUtils.clone(key, config), WritableUtils.clone(value, config)));
 			}
 		}
 		reader.close();

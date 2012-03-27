@@ -1,9 +1,13 @@
 package com.tstordyallison.ffmpegmr.util;
 
+
 public class NativeUtil {
 
 	public static void loadFFmpegMR()
 	{
+        if(!System.getProperty("os.arch").contains("64"))
+			throw new RuntimeException("Only 64bit Linux platforms are currently supported on the TaskTrackers.");
+		
 		loadLibraryWithFailureAllowed("mp3lame");
 		loadLibraryWithFailureAllowed("faac");
 		loadLibraryWithFailureAllowed("x264");

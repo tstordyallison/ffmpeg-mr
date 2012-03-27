@@ -48,6 +48,13 @@ typedef struct MergerState {
     uint8_t *stream_buffer;
     
     OutputStreamOpaque stream_info;
+    
+    const char *filename;
+    int filename_copy;
+    jstring jfilename;
+    
+    long *last_dts;
+    long *last_duration;
 
     MergerState(){
         this->segment_count = 0;
@@ -59,6 +66,10 @@ typedef struct MergerState {
         this->stream_info.env = NULL;
         this->stream_info.obj = NULL;
         this->stream_info.stream = NULL;
+        
+        this->filename = NULL;
+        this->filename_copy = 0;
+        this->jfilename = NULL;
     };
     
     ~MergerState(){
@@ -220,6 +231,22 @@ JNIEXPORT void JNICALL Java_com_tstordyallison_ffmpegmr_Merger_initWithOutputStr
     tracker.registerObjectState(env, obj, state);
 };
 
+/*
+ * Class:     com_tstordyallison_ffmpegmr_Merger
+ * Method:    initWithFile
+ * Signature: (Ljava/lang/String;)V
+ */
+JNIEXPORT void JNICALL Java_com_tstordyallison_ffmpegmr_Merger_initWithFile
+(JNIEnv *env, jobject obj, jstring filename){
+    // Init some new state.
+    MergerState *state = new MergerState;
+    
+    state->filename = env->GetStringUTFChars(filename, (jboolean *)&state->filename_copy);
+    
+    // Add this state to the register.
+    tracker.registerObjectState(env, obj, state);
+}
+
 
 static void process_segment(JNIEnv *env, MergerState *state, AVFormatContext *input_format_ctx)
 {
@@ -237,13 +264,22 @@ static void process_segment(JNIEnv *env, MergerState *state, AVFormatContext *in
             return;
         }
         
-        // Setup the custom IO.
-        //state->output_format_context->pb = avio_alloc_context(state->stream_buffer, STREAM_BUFFER_SIZE, 1, &state->stream_info, NULL, Java_OutputStream_Write, NULL);
-        
-        if (avio_open(&state->output_format_context->pb, "/tmp/test.mkv", AVIO_FLAG_WRITE) < 0) {
-            fprintf(stderr, "Could not open '%s'\n", "/tmp/test.mkv");
-            return;
+        if(state->stream_info.stream != NULL)
+        {
+            // Setup the custom IO.
+            state->output_format_context->pb = avio_alloc_context(state->stream_buffer, STREAM_BUFFER_SIZE, 1, &state->stream_info, NULL, Java_OutputStream_Write, NULL);
         }
+        else
+        {
+            if (avio_open(&state->output_format_context->pb, state->filename, AVIO_FLAG_WRITE) < 0) {
+                fprintf(stderr, "Could not open '%s'\n", state->filename);
+                return;
+            }
+        }
+        
+        // Init the pts counter.
+        state->last_dts = (long *)malloc(sizeof(long *) * input_format_ctx->nb_streams);
+        state->last_duration = (long *)malloc(sizeof(long *) * input_format_ctx->nb_streams);
         
         for(int i = 0; i < input_format_ctx->nb_streams; i++)
         {
@@ -279,11 +315,16 @@ static void process_segment(JNIEnv *env, MergerState *state, AVFormatContext *in
             new_stream->codec->extradata = (uint8_t *)malloc(old_stream->codec->extradata_size); 
             memcpy(new_stream->codec->extradata, old_stream->codec->extradata, old_stream->codec->extradata_size);
             new_stream->codec->codec_tag = 0;
+            
+            state->last_dts[i] = 0;
+            state->last_duration[i] = 0;
         }
         
         // Write the header to the file now we have our stream info.
         if(throwNonZero(avformat_write_header(state->output_format_context, NULL), "Writing header to file.", env)!=0)
             return;
+        
+        
         
     }
     
@@ -293,13 +334,21 @@ static void process_segment(JNIEnv *env, MergerState *state, AVFormatContext *in
     // Read and then write each of the frames to the new file.
     while(!av_read_frame(input_format_ctx, pkt))
     {
+
+        if (pkt->dts != AV_NOPTS_VALUE)
+            state->last_dts[pkt->stream_index] = pkt->dts = av_rescale_q(pkt->dts, input_format_ctx->streams[pkt->stream_index]->time_base, state->output_format_context->streams[pkt->stream_index]->time_base);
+        else
+            if (state->last_duration[pkt->stream_index] > 0)
+                state->last_dts[pkt->stream_index] = pkt->dts = state->last_dts[pkt->stream_index] + state->last_duration[pkt->stream_index];
         
         if (pkt->pts != AV_NOPTS_VALUE)
             pkt->pts = av_rescale_q(pkt->pts, input_format_ctx->streams[pkt->stream_index]->time_base, state->output_format_context->streams[pkt->stream_index]->time_base);
-        if (pkt->dts != AV_NOPTS_VALUE)
-            pkt->dts = av_rescale_q(pkt->dts, input_format_ctx->streams[pkt->stream_index]->time_base, state->output_format_context->streams[pkt->stream_index]->time_base);
-        if (pkt->duration != AV_NOPTS_VALUE)
-            pkt->duration = av_rescale_q(pkt->duration, input_format_ctx->streams[pkt->stream_index]->time_base, state->output_format_context->streams[pkt->stream_index]->time_base);
+
+        if (pkt->duration != AV_NOPTS_VALUE){
+            pkt->duration = av_rescale_q(pkt->duration, input_format_ctx->streams[pkt->stream_index]->time_base,  state->output_format_context->streams[pkt->stream_index]->time_base);
+            if(pkt->duration > 0)
+                state->last_duration[pkt->stream_index] = pkt->duration;
+        }
         
         if(DEBUG_PRINT_CRAZY){
             fprintf(stderr, "Writing packet to merge for stream %d (dts=%lld, pts=%lld, size=%d)\n", pkt->stream_index, pkt->dts, pkt->pts, pkt->size);
@@ -308,8 +357,9 @@ static void process_segment(JNIEnv *env, MergerState *state, AVFormatContext *in
         int ret = av_interleaved_write_frame(state->output_format_context, pkt);
         av_free_packet(pkt);
         
-        if(DEBUG_PRINT_CRAZY && ret != 0){
+        if(DEBUG && ret != 0){
             fprintf(stderr, "Error writing frame (skippped): ret=%d\n", ret);
+            print_av_error(ret);
         }
         
         pkt = (AVPacket *)malloc(sizeof(AVPacket));
@@ -337,7 +387,8 @@ JNIEXPORT void JNICALL Java_com_tstordyallison_ffmpegmr_Merger_addSegment__Ljava
     if(state != NULL)
     {
         // Get a copy of the string.
-        char *filename = (char *)env->GetStringUTFChars(path, NULL);
+        int filename_copy = 0;
+        char *filename = (char *)env->GetStringUTFChars(path, (jboolean *)&filename_copy);
         
         // Set and open the format context and probe.
         AVFormatContext *input_format_ctx = avformat_alloc_context();
@@ -356,7 +407,8 @@ JNIEXPORT void JNICALL Java_com_tstordyallison_ffmpegmr_Merger_addSegment__Ljava
         avformat_close_input(&input_format_ctx);
         
         // Dealloc the JNI string.
-        free(filename);
+        if(filename_copy)
+            env->ReleaseStringUTFChars(path, filename);
     }
     else
         throw_new_exception(env, "Merger not available.");
@@ -421,21 +473,32 @@ JNIEXPORT void JNICALL Java_com_tstordyallison_ffmpegmr_Merger_closeOutput
     MergerState *state = tracker.getObjectState(env, obj);
     if(state != NULL)
     {
-
-        // Write the trailer for the file.
-        av_write_trailer(state->output_format_context);
+        if(state->segment_count > 0)
+        {
+            // Write the trailer for the file.
+            av_write_trailer(state->output_format_context);
+            
+            // Dealloc any state.
+            av_freep(&state->output_format_context->pb);
+            avformat_close_input(&state->output_format_context);
+        }
+        else
+        {
+            fprintf(stderr, "WARNING: No segments processed.\n");
+        }
         
-        // Clean up state.
-        
-        // Set the closed boolean to true on the calling object.
-        
-        // Dealloc any state.
-        av_freep(&state->output_format_context->pb);
-        avformat_close_input(&state->output_format_context);
+        // TODO: Set the closed boolean to true on the calling object.
         
         // Remove the stream ref
         if(state->stream_info.stream != NULL)
             env->DeleteGlobalRef(state->stream_info.stream);
+        
+        // Relase the filename
+        if(state->filename != NULL)
+        {
+            if(state->filename_copy)
+                env->ReleaseStringUTFChars(state->jfilename, state->filename);
+        }
         
         // Remove the object from the tracker.
         tracker.unregisterObjectState(env, obj);

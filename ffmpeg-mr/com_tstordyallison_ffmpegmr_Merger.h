@@ -9,6 +9,14 @@ extern "C" {
 #endif
 /*
  * Class:     com_tstordyallison_ffmpegmr_Merger
+ * Method:    initWithFile
+ * Signature: (Ljava/lang/String;)V
+ */
+JNIEXPORT void JNICALL Java_com_tstordyallison_ffmpegmr_Merger_initWithFile
+  (JNIEnv *, jobject, jstring);
+
+/*
+ * Class:     com_tstordyallison_ffmpegmr_Merger
  * Method:    initWithOutputStream
  * Signature: (Lorg/apache/hadoop/fs/FSDataOutputStream;)V
  */

@@ -12,6 +12,9 @@ import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.BytesWritable;
 import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.SequenceFile;
+import org.apache.hadoop.mapred.JobConf;
+
+import com.tstordyallison.ffmpegmr.hadoop.TranscodeJob;
 import com.tstordyallison.ffmpegmr.util.FileUtils;
 import com.tstordyallison.ffmpegmr.util.Printer;
 import com.tstordyallison.ffmpegmr.util.ThreadCatcher;
@@ -39,8 +42,8 @@ public class ReduceConvert {
 		}
 		else
 		{
-			runConversion("file:///Users/tom/Code/fyp/downloaded-output/avi-ffmpeg-mr-5cbe9e22-997f-4bbe-89f2-7cdc7ed9113e-9f9028e5-58d3-4d6a-9221-f1aeb98fef47/", 
-						         "/Users/tom/Code/fyp/example-videos/output/Test.avi.mkv");
+			runConversion("s3n://ffmpeg-mr/output/mkv-ffmpeg-mr-da2c17e7-fa9f-46ad-b84f-ed4fa8467819/", 
+						         "/Users/tom/Code/fyp/example-videos/output-mkv/Test.mkv");
 //			runConversion("file:///Users/tom/Code/fyp/downloaded-output/mkv-ffmpeg-mr-5cbe9e22-997f-4bbe-89f2-7cdc7ed9113e-35e5aeda-3feb-46c7-ad94-a3f8b6c9f033/", 
 //			                     "/Users/tom/Code/fyp/downloaded-videos/Output/Test.mkv.mkv");
 //			runConversion("file:///Users/tom/Code/fyp/downloaded-videos/mp4-ffmpeg-mr-5cbe9e22-997f-4bbe-89f2-7cdc7ed9113e-135da8fd-4958-4b5f-ab00-544328015ec9/", 
@@ -54,20 +57,21 @@ public class ReduceConvert {
 		
 		Printer.println("Converting " + inputUri + "...");
 		
-		Configuration config = new Configuration();
-		FileSystem fs = FileSystem.get(new URI(inputUri), config);
+		FileSystem fs = FileSystem.get(new URI(inputUri), TranscodeJob.getConfig());
 		
 		for(FileStatus item : fs.listStatus(new Path(inputUri)))
 		{
 			if(item.getPath().toUri().toString().contains("part-")){
-				SequenceFile.Reader reader = new SequenceFile.Reader(FileSystem.get(config), item.getPath(), config);
+				SequenceFile.Reader reader = new SequenceFile.Reader(fs, item.getPath(), TranscodeJob.getConfig());
 
 				LongWritable key = (LongWritable)reader.getKeyClass().newInstance(); 
 				BytesWritable value = (BytesWritable)reader.getValueClass().newInstance();
 			
+				Printer.println("Reduce file: " + item.getPath());
+				
 				// Read in all the chunks and sort them in memory.
 				while (reader.next(key, value)){
-					Printer.println("Reduce output: size=" + FileUtils.humanReadableByteCount(value.getLength(), false) + "(" + value.getLength() + " bytes)");
+					Printer.println("Reduce output: ts=" + key.get() + ", size=" + FileUtils.humanReadableByteCount(value.getLength(), false) + "(" + value.getLength() + " bytes)");
 					
 					File outputFile = new File(outputPrefix + "."  + key.get());
 					FileOutputStream outputStream = new FileOutputStream(outputFile);

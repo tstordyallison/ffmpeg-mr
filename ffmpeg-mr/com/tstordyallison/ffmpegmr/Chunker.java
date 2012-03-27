@@ -14,19 +14,14 @@ import com.tstordyallison.ffmpegmr.util.ThreadCatcher;
 public class Chunker {
 	
 	public static int 	 CHUNK_Q_LIMIT = 5;
-	public static double CHUNK_SIZE_FACTOR = 1;
 	
 	public static class ChunkerReport {
 		private long packetCount = 0;
 		private long endTS = 0;
-		private long timeBaseDen = 0;
-		private long timeBaseNum = 0;
 		
-		public ChunkerReport(long packetCount, long endTS, long timeBaseDen,  long timeBaseNum) {
+		public ChunkerReport(long packetCount, long endTS) {
 			this.packetCount = packetCount;
 			this.endTS = endTS;
-			this.timeBaseDen = timeBaseDen;
-			this.timeBaseNum = timeBaseNum;
 		}
 		
 		public long getPacketCount() {
@@ -34,12 +29,6 @@ public class Chunker {
 		}
 		public long getEndTS() {
 			return endTS;
-		}
-		public long getTimeBaseDen() {
-			return timeBaseDen;
-		}
-		public long getTimeBaseNum() {
-			return timeBaseNum;
 		}
 	}
 	
@@ -58,9 +47,9 @@ public class Chunker {
 		BlockingQueue<Chunk> chunkQ = new LinkedBlockingQueue<Chunk>(CHUNK_Q_LIMIT);
 		
 		// Start the chunker 
-		WriterThread writer = new WriterThread(chunkQ, hadoopUri, "Hadoop FS Writer Thread"); 
+		WriterThread writer = new WriterThread(config, chunkQ, hadoopUri, "Hadoop FS Writer Thread"); 
 		writer.setUncaughtExceptionHandler(new ThreadCatcher());
-		ChunkerThread chunker = new ChunkerThread(config, chunkQ, inputUri, (int)(writer.getBlockSize()*CHUNK_SIZE_FACTOR), "FFmpeg JNI Demuxer");
+		ChunkerThread chunker = new ChunkerThread(config, chunkQ, inputUri, writer.getBlockSize(), "FFmpeg JNI Demuxer");
 		chunker.setUncaughtExceptionHandler(new ThreadCatcher());
 		
 		// Start and wait for completion.
@@ -70,7 +59,7 @@ public class Chunker {
 		// Job done!
 		Printer.println("Sucessfully Demuxed " + inputUri + ".");
 	
-		ChunkerReport report = new ChunkerReport(chunker.getPacketCount(), chunker.getEndTS(), chunker.getEndTSDen(), chunker.getEndTSNum());
+		ChunkerReport report = new ChunkerReport(chunker.getPacketCount(), chunker.getEndTS());
 		return report;
 	}
 		

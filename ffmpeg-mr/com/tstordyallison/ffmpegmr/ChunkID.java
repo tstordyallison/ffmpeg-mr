@@ -5,6 +5,7 @@ import java.io.DataOutput;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 
@@ -13,16 +14,17 @@ import org.joda.time.Period;
 import org.joda.time.format.PeriodFormat;
 
 public class ChunkID implements Writable, Comparable<ChunkID> {
-	// TODO: Sort this mess out. This started off as a struct, but is now an object.  
 	
-	public long chunkNumber;
-	public int streamID;
-	public long startTS; 	
-	public long endTS; 
-	public long tbNum;
-	public long tbDen;
-	public List<Long> outputChunkPoints = new ArrayList<Long>(); // Stores the extra points at which this chunk will split on encode
-	public long streamDuration;
+	private long streamDuration = Long.MAX_VALUE;
+	private long chunkNumber = -1;
+	private int streamID = -1; // THIS IS READ BY NATIVE CODE IN THE REMUXER - CAREFUL!
+	private long startTS = 0; 	
+	private long endTS = -1; 
+	private long tbNum = 0;
+	private long tbDen = 1;
+	private List<Long> outputChunkPoints = new ArrayList<Long>(); // Stores the extra points at which this chunk will split on encode
+	
+	public boolean written = false;
 	
 	@Override
 	public void write(DataOutput out) throws IOException {
@@ -39,6 +41,8 @@ public class ChunkID implements Writable, Comparable<ChunkID> {
 			sb.append(",");
 		}
 		out.writeUTF(sb.toString());
+		
+		this.written = true; // This prevents modification.
 	}
 	@Override
 	public void readFields(DataInput in) throws IOException {
@@ -57,6 +61,84 @@ public class ChunkID implements Writable, Comparable<ChunkID> {
 				for(String point : chunkPoints)
 					outputChunkPoints.add(Long.parseLong(point));
 		}
+	}
+
+	public long getChunkNumber() {
+		return chunkNumber;
+	}
+	public void setChunkNumber(long chunkNumber) {
+		writtenCheck();
+		this.chunkNumber = chunkNumber;
+	}
+	public int getStreamID() {
+		return streamID;
+	}
+	public void setStreamID(int streamID) {
+		writtenCheck();
+		this.streamID = streamID;
+	}
+	public long getStartTS() {
+		return startTS;
+	}
+	public void setStartTS(long startTS) {
+		writtenCheck();
+		this.startTS = startTS;
+	}
+	public long getEndTS() {
+		return endTS;
+	}
+	public void setEndTS(long endTS) {
+		writtenCheck();
+		this.endTS = endTS;
+	}
+	public long getTbNum() {
+		return tbNum;
+	}
+	public void setTbNum(long tbNum) {
+		writtenCheck();
+		this.tbNum = tbNum;
+	}
+	public long getTbDen() {
+		return tbDen;
+	}
+	public void setTbDen(long tbDen) {
+		writtenCheck();
+		this.tbDen = tbDen;
+	}
+	public List<Long> getOutputChunkPoints() {
+		if(written)
+			return Collections.unmodifiableList(outputChunkPoints);
+		else
+			return outputChunkPoints;
+	}
+	public void setOutputChunkPoints(List<Long> outputChunkPoints) {
+		writtenCheck();
+		this.outputChunkPoints = outputChunkPoints;
+	}
+	public long getStreamDuration() {
+		return streamDuration;
+	}
+	public void setStreamDuration(long streamDuration) {
+		writtenCheck();
+		this.streamDuration = streamDuration;
+	}
+	
+	public boolean isModifiable()
+	{
+		return !written;
+	}
+	
+	public long getMillisecondsStartTs()
+	{
+		return toMs(startTS, tbNum, tbDen);
+	}
+	public long getMillisecondsEndTs()
+	{
+		return toMs(endTS, tbNum, tbDen);
+	}
+	public long getMillisecondsDuration()
+	{
+		return toMs(endTS-startTS, tbNum, tbDen);
 	}
 	
 	@Override
@@ -77,12 +159,6 @@ public class ChunkID implements Writable, Comparable<ChunkID> {
 			return "";
 		}
 	}
-	
-	@Override
-	public int compareTo(ChunkID o) {
-		return this.toString().compareTo(o.toString());
-	}
-	
 	private String toStringChunkPoint() {
 		StringBuilder builder = new StringBuilder();
 		builder.append("[");
@@ -97,22 +173,19 @@ public class ChunkID implements Writable, Comparable<ChunkID> {
 		builder.append("]");
 		return builder.toString();
 	}
-
-	public long getMillisecondsStartTs()
-	{
-		return toMs(startTS, tbNum, tbDen);
-	}
-	public long getMillisecondsEndTs()
-	{
-		return toMs(endTS, tbNum, tbDen);
-	}
-	public long getMillisecondsDuration()
-	{
-		return toMs(endTS-startTS, tbNum, tbDen);
+	
+	@Override
+	public int compareTo(ChunkID o) {
+		return this.toString().compareTo(o.toString());
 	}
 	
 	public static long toMs(long value, long tbNum, long tbDen){
 		return (long)(((value)*tbNum)/((double)tbDen/1000));
 	}
 	
+	private void writtenCheck()
+	{
+		if(written)
+			throw new RuntimeException("This chunkID has been written and is no longer mutable.");
+	}
 }

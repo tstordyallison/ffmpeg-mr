@@ -7,7 +7,7 @@ extern "C" {
 
 JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void *reserved){
     // Set the log level.
-    av_log_set_level(AV_LOG_VERBOSE);
+    av_log_set_level(AV_LOG_WARNING);
     
     // Load up FFmpeg.
     av_register_all();

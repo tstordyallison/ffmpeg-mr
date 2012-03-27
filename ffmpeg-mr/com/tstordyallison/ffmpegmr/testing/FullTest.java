@@ -14,7 +14,6 @@ public class FullTest {
 		
 		Thread.setDefaultUncaughtExceptionHandler(new ThreadCatcher()); 
 		Printer.ENABLED = true;
-		Chunker.CHUNK_SIZE_FACTOR = 0.5;
 		
 		if(args.length == 3)
 		{

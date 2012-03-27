@@ -35,6 +35,7 @@ public class Merger {
 		NativeUtil.loadFFmpegMR();
 	}
 	
+	private File output;
 	private Path outputUri;
 	private FSDataOutputStream outputStream;
 	private boolean closed = false;
@@ -46,97 +47,70 @@ public class Merger {
 		outputStream = fs.create(outputUri, true);
 		initWithOutputStream(outputStream);
 	}
+	private Merger(File output) throws IOException
+	{
+		this.output = output;	
+		initWithFile(output.getAbsolutePath());
+	}
 	
+	private native void initWithFile(String filePath);
 	private native void initWithOutputStream(FSDataOutputStream output);
-	private native void addSegment(byte[] segment, long off, long len); // Maybe convert this to a stream.
-	private native void addSegment(String filePath); // Maybe convert this to a stream.
+	private native void addSegment(byte[] segment, long off, long len);
+	private native void addSegment(String filePath); 
 	private native void closeOutput();
 	
 	private void close() throws IOException
 	{
 		this.closeOutput();
-		this.outputStream.close();
+		if(outputStream != null)
+			this.outputStream.close();
 	}
 	private boolean isClosed(){return closed;};
 	
-	public static void merge(Path inputUri, Path outputUri) throws IOException{
-		merge(new Configuration(), inputUri, outputUri);
-	}
-	public static void merge(String inputUri, String outputUri) throws IOException{
-		merge(new Configuration(), new Path(inputUri), new Path(outputUri));
-	}
 	public static void merge(Configuration config, String inputUri, String outputUri) throws IOException{
-		merge(config, new Path(inputUri), new Path(outputUri));
+		if(outputUri.startsWith("file://"))
+			merge(config, new Path(inputUri), new File(outputUri.substring(7)));
+		else
+			merge(config, new Path(inputUri), new Path(outputUri));
 	}
 	
-	public static void merge(Configuration config, String folderPath, Path outputUri) throws IOException{
+	public static void merge(Configuration config, File folder, Path outputUri) throws IOException{
 		Merger merger = new Merger(config, outputUri);
-		
-		if(!merger.isClosed()){
-			
-			// This causes the actual merge operation to happen.
-			Printer.println("Merging " + folderPath + "...");
-		
-			File folder = new File(folderPath);
-			
-			if(folder.isDirectory())
-			{
-				List<String> files = Arrays.asList(folder.list());
-				Collections.sort(files, new Comparator<String>(){
-
-					@Override
-					public int compare(String o1, String o2) {
-						if(o1.lastIndexOf(".") >= 0 && o2.lastIndexOf(".") >= 0){
-							try{
-								long o1Num = Long.parseLong(o1.substring(o1.lastIndexOf(".")+1));
-								long o2Num = Long.parseLong(o2.substring(o2.lastIndexOf(".")+1));
-								return new Long(o1Num).compareTo(new Long(o2Num));
-							}
-							catch(Exception e){
-								e.printStackTrace();
-								return o1.compareTo(o2);
-							}
-						}
-						else
-							return o1.compareTo(o2);
-					}
-					
-				});
-				Printer.println(files.toString());
-				for(String file : files)
-				{
-					File segment = new File(folder.getAbsolutePath() + "/" + file);
-					if(segment.isFile() && !file.startsWith("."))
-					{
-						String segPath = folder.getAbsolutePath() + "/" + file;
-						Printer.println(segPath);
-						merger.addSegment(segPath);
-						Printer.println("Reduce output merged: s=" + segment.getName() + ", size=" + FileUtils.humanReadableByteCount(segment.length(), false));
-					}
-				}
-			}
-			merger.close();
-			Printer.println("Sucessfully merged " + folderPath + ".");
-		}
-		else
-		{
-			throw new RuntimeException("This merger is closed and further merge operations cannot be performed.");
-		}
+		mergeFromFolder(merger, folder);
+		merger.close();
 	}
 	
 	public static void merge(Configuration config, Path inputUri, Path outputUri) throws IOException{
 		Merger merger = new Merger(config, outputUri);
-		
+		mergeFromStream(merger, config, inputUri);
+		merger.close();
+	}
+	
+	public static void merge(Configuration config, File folder, File file) throws IOException{
+		Merger merger = new Merger(file);
+		mergeFromFolder(merger, folder);
+		merger.close();
+	}
+	
+	public static void merge(Configuration config, Path inputUri, File file) throws IOException{
+		Merger merger = new Merger(file);
+		mergeFromStream(merger, config, inputUri);
+		merger.close();
+	}
+	
+	public static void mergeFromStream(Merger merger, Configuration config, Path inputUri) throws IOException{
+
 		if(!merger.isClosed()){
 			
 			// This causes the actual merge operation to happen.
 			Printer.println("Merging " + inputUri + "...");
 		
-			FileSystem fs = FileSystem.get(inputUri.toUri(), config);	
+			FileSystem fs = FileSystem.get(inputUri.toUri(), config);
+			
 			for(FileStatus item : fs.listStatus(inputUri))
 			{
 				if(item.getPath().toUri().toString().contains("part-")){
-					SequenceFile.Reader reader = new SequenceFile.Reader(FileSystem.get(config), item.getPath(), config);
+					SequenceFile.Reader reader = new SequenceFile.Reader(fs, item.getPath(), config);
 	
 					LongWritable key = null;
 					BytesWritable value = null;
@@ -155,7 +129,6 @@ public class Merger {
 						merger.addSegment(value.getBytes(), 0, value.getLength()-1);
 						Printer.println("Reduce output merged: ts=" + key.get() + ", size=" + FileUtils.humanReadableByteCount(value.getLength(), false));
 					}
-					merger.close();
 					reader.close();
 				}	
 			}
@@ -165,6 +138,61 @@ public class Merger {
 		else
 		{
 			throw new RuntimeException("This merger is closed and further merge operations cannot be performed.");
+		}
+	}
+	
+	private static void mergeFromFolder(Merger merger, File folder) throws IOException
+	{
+		if (!merger.isClosed()) {
+
+			// This causes the actual merge operation to happen.
+			Printer.println("Merging " + folder.getAbsolutePath() + "...");
+
+			if (folder.isDirectory()) {
+				List<String> files = Arrays.asList(folder.list());
+				Collections.sort(files, new Comparator<String>() {
+
+					@Override
+					public int compare(String o1, String o2) {
+						if (o1.lastIndexOf(".") >= 0
+								&& o2.lastIndexOf(".") >= 0) {
+							try {
+								long o1Num = Long.parseLong(o1.substring(o1
+										.lastIndexOf(".") + 1));
+								long o2Num = Long.parseLong(o2.substring(o2
+										.lastIndexOf(".") + 1));
+								return new Long(o1Num)
+										.compareTo(new Long(o2Num));
+							} catch (Exception e) {
+								e.printStackTrace();
+								return o1.compareTo(o2);
+							}
+						} else
+							return o1.compareTo(o2);
+					}
+
+				});
+				Printer.println(files.toString());
+				for (String file : files) {
+					File segment = new File(folder.getAbsolutePath() + "/"
+							+ file);
+					if (segment.isFile() && !file.startsWith(".")) {
+						String segPath = folder.getAbsolutePath() + "/" + file;
+						Printer.println(segPath);
+						merger.addSegment(segPath);
+						Printer.println("Reduce output merged: s="
+								+ segment.getName()
+								+ ", size="
+								+ FileUtils.humanReadableByteCount(
+										segment.length(), false));
+					}
+				}
+			}
+			Printer.println("Sucessfully merged " + folder.getAbsolutePath()
+					+ ".");
+		} else {
+			throw new RuntimeException(
+					"This merger is closed and further merge operations cannot be performed.");
 		}
 	}
 }

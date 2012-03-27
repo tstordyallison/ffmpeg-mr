@@ -4,8 +4,8 @@ import org.joda.time.DateTime;
 
 public class Printer {
 	
-	public static boolean ENABLED = false;
-	public static boolean USE_ERR = false;
+	public static boolean ENABLED = true;
+	public static boolean USE_ERR = true;
 
 	public static void println(String text)
 	{

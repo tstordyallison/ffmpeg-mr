@@ -10,10 +10,10 @@ extern "C" {
 /*
  * Class:     com_tstordyallison_ffmpegmr_Transcoder
  * Method:    initWithBytes
- * Signature: (JJ[J[B)I
+ * Signature: (JJ[J[BDDII)I
  */
 JNIEXPORT jint JNICALL Java_com_tstordyallison_ffmpegmr_Transcoder_initWithBytes
-  (JNIEnv *, jobject, jlong, jlong, jlongArray, jbyteArray);
+  (JNIEnv *, jobject, jlong, jlong, jlongArray, jbyteArray, jdouble, jdouble, jint, jint);
 
 /*
  * Class:     com_tstordyallison_ffmpegmr_Transcoder

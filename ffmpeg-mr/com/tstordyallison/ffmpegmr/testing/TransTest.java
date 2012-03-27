@@ -41,13 +41,7 @@ public class TransTest {
 		}
 		else
 		{
-			//runMapper("file:///Users/tom/Code/fyp/example-videos/Test.mp4.seq", "file:///Users/tom/Code/fyp/example-videos/Test.mp4.mapped.seq");
-			//runMapper("file:///Users/tom/Code/fyp/example-videos/Test.m4v.seq", "file:///Users/tom/Code/fyp/example-videos/Test.m4v.mapped.seq");
-			//runMapper("file:///Users/tom/Code/fyp/example-videos/TestMultiStream.m4v.seq", "file:///Users/tom/Code/fyp/example-videos/TestMultiStream.m4v.mapped.seq");
-			//runMapper("file:///Users/tom/Code/fyp/example-videos/Test.mkv.seq", "file:///Users/tom/Code/fyp/example-videos/Test.mkv.mapped.seq");
-			//runMapper("file:///Users/tom/Code/fyp/example-videos/Test.wmv.seq", "file:///Users/tom/Code/fyp/example-videos/Test.wmv.mapped.seq");
-			runMapper("file:///Users/tom/Code/fyp/example-videos/Test2.avi.seq", "file:///Users/tom/Code/fyp/example-videos/Test2.avi.mapped.seq");
-			//runMapper("file:///Users/tom/Code/fyp/example-videos/TestSmall.avi.seq", "file:///Users/tom/Code/fyp/example-videos/TestSmall.avi.mapped.seq");
+			runMapper("file:///Users/tom/Code/fyp/example-videos/TestCandidates/Test1.wmv.seq", "file:///Users/tom/Code/fyp/example-videos/Test1.wmv.seq.mapped");
 		}
 	}
 	
@@ -73,7 +67,7 @@ public class TransTest {
 		ChunkData value = (ChunkData)reader.getValueClass().newInstance();
 		
 		BlockingQueue<Chunk> chunkQ = new LinkedBlockingQueue<Chunk>(20);
-		WriterThread writer = new WriterThread(chunkQ,  outputUri, "Hadoop FS Writer Thread");
+		WriterThread writer = new WriterThread(config, chunkQ,  outputUri, "Hadoop FS Writer Thread");
 		writer.start();
 		 
 		while (reader.next(key, value))

@@ -6,41 +6,41 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.UUID;
 
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.conf.Configured;
 import org.apache.hadoop.filecache.DistributedCache;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.FileUtil;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.BytesWritable;
 import org.apache.hadoop.io.LongWritable;
-import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.lib.input.SequenceFileInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.SequenceFileOutputFormat;
+import org.apache.hadoop.util.Tool;
+import org.apache.hadoop.util.ToolRunner;
 
 import com.tstordyallison.ffmpegmr.Chunk;
-import com.tstordyallison.ffmpegmr.ChunkData;
-import com.tstordyallison.ffmpegmr.ChunkID;
 import com.tstordyallison.ffmpegmr.Chunker;
 import com.tstordyallison.ffmpegmr.Chunker.ChunkerReport;
-import com.tstordyallison.ffmpegmr.Merger;
 import com.tstordyallison.ffmpegmr.WriterThread;
+import com.tstordyallison.ffmpegmr.util.FileUtils;
 import com.tstordyallison.ffmpegmr.util.OSValidator;
 import com.tstordyallison.ffmpegmr.util.Printer;
 
-public class TranscodeJob {
+public class TranscodeJob extends Configured implements Tool {
 
+	public static enum ProgressCounter { AUDIO_PROGRESS, VIDEO_PROGRESS, COMBINED_PROGRESS} 
+	
+	private static URI[] nativeLibs = null;
+	private static URI[] nativeLibs64 = null;
+	
 	static{
 		Printer.ENABLED = true;
 		Printer.USE_ERR = true;
 		WriterThread.BLOCK_SIZE *= 1; // 16Mb increments.
 		WriterThread.PRINT_WRITE = true;
-	}
-	
-	public static enum ProgressCounter { AUDIO_PROGRESS, VIDEO_PROGRESS, COMBINED_PROGRESS} 
-	
-	private static URI[] nativeLibs = null;
-	private static URI[] nativeLibs64 = null;
-	static { 
+		
 		try {
 			nativeLibs = new URI[] {
 				new URI("s3n://ffmpeg-mr/lib/libffmpeg-mr.so#libffmpeg-mr.so"),
@@ -62,58 +62,50 @@ public class TranscodeJob {
 				};
 		} catch (URISyntaxException e) {
 		}
+		
+		if(!OSValidator.isMac())
+			copyNativeToLibPath();
 	}
 	
-	public static void main(String[] args) throws IOException, InterruptedException, ClassNotFoundException, URISyntaxException, InstantiationException, IllegalAccessException {		
+	@Override
+	public int run(String[] args) throws Exception {
+		
 		String jobID = UUID.randomUUID().toString();
-		
-		JobConf config = new JobConf();
-		config.set("fs.s3.awsAccessKeyId", "01MDAYB509VJ53B2EK02");
-		config.set("fs.s3.awsSecretAccessKey", "zwajpazry7Me7tnbYaw3ldoj5mbRDMFMHqYHgDmv");
-		config.set("fs.s3n.awsAccessKeyId", "01MDAYB509VJ53B2EK02");
-		config.set("fs.s3n.awsSecretAccessKey", "zwajpazry7Me7tnbYaw3ldoj5mbRDMFMHqYHgDmv");
-		config.setCompressMapOutput(false);
-		
-		// Setup the libary path if not testing.
-		if(!OSValidator.isMac())
-			copyNativeToLibPath(config);
-		
-		// For testing.
-		if(args.length == 0)
-		{
-			args = new String[2];
-			args[0] = "file:///Users/tom/Code/fyp/example-videos/Test.avi";
-			args[1] = "file:///Users/tom/Code/fyp/example-videos/Test.avi.mkv.output" + jobID + "/";
-		}
-	        
-		// --------------------------
-		// Demux the file into the local HDFS.
-		// --------------------------
-		Path movieFile = new Path(args[0]);
-		Path demuxData = new Path("/tmp/demux-temp-" + jobID); 
-		Path outputData = new Path("/tmp/reduced-output-temp-" + jobID); 
-		
-		// Demux the file.
-		ChunkerReport report = Chunker.chunkInputFile(config, movieFile.toUri().toString(), demuxData.toUri().toString());
-        Printer.println("Total number of frames to process: " + report.getPacketCount());  
-        config.setLong("tsa.tstordyallison.ffmpegmr.packetcount", report.getPacketCount());
-        config.setLong("tsa.tstordyallison.ffmpegmr.duration", report.getEndTS());
-		
-		// --------------------------
-		// Run the transcode job.
-		// --------------------------
-		
+		Configuration config = getConfig();
+		   
 		// Copy native binaries to the distributed cache if we are not testing.
 		if(!OSValidator.isMac())
 		{	
 	        DistributedCache.createSymlink(config);
-	        //if(System.getProperty("os.arch").contains("64"))
-				for(URI lib : nativeLibs64)
-					DistributedCache.addCacheFile(lib, config);
-	        //else if(System.getProperty("os.arch").contains("86"))
-		        //for(URI lib : nativeLibs)
-					//DistributedCache.addCacheFile(lib, config);
+			for(URI lib : nativeLibs64)
+				DistributedCache.addCacheFile(lib, config);
 		}
+		
+		// --------------------------
+		// Demux the file into the local HDFS if needed.
+		// --------------------------
+		Path demuxData = null;
+		Path movieFile = new Path(args[0]);
+		
+		if(!movieFile.getName().endsWith(".seq")){
+			demuxData = new Path("/tmp/demux-temp-" + jobID); 
+			
+			if(FileSystem.get(movieFile.toUri(), config).getFileStatus(movieFile).getLen() > FileUtils.GIBIBYTE*2){
+				Printer.println("WARNING: This file is over 2GB and will likely take a very long time to Demux via S3.");
+				Printer.println("WARNING: Please upload this file as a pre-demuxed SequenceFile to improve performance.");
+			}
+
+			ChunkerReport report = Chunker.chunkInputFile(config, movieFile.toUri().toString(), demuxData.toUri().toString());
+	        Printer.println("Total number of frames to process: " + report.getPacketCount());  
+		}
+		else{
+			Printer.println("Using a pre-demuxed SequenceFile.");
+			demuxData = movieFile;
+		}	
+		
+		// --------------------------
+		// Run the transcode job.
+		// --------------------------
 
 		Job job = new Job(config);
 		job.setJobName("FFmpeg-MR Job: " + jobID);
@@ -124,6 +116,8 @@ public class TranscodeJob {
 	    job.setMapOutputKeyClass(LongWritable.class);
 	    job.setMapOutputValueClass(Chunk.class);
 	   
+	    job.setPartitionerClass(TranscodePartitioner.class);
+	    
 		job.setReducerClass(RemuxReducer.class);
 		
 	    job.setOutputFormatClass(SequenceFileOutputFormat.class);
@@ -131,25 +125,21 @@ public class TranscodeJob {
 	    job.setOutputValueClass(BytesWritable.class);
 	    
         SequenceFileInputFormat.addInputPath(job, demuxData);
-        //SequenceFileOutputFormat.setOutputPath(job, outputData);
         SequenceFileOutputFormat.setOutputPath(job, new Path(args[1]));
         
         job.setJarByClass(TranscodeJob.class);
-       
         job.waitForCompletion(true);
         
-        FileSystem.get(config).delete(demuxData, false);
+        // Remove the temp HDFS data if needed.
+        if(demuxData != movieFile)
+        	FileSystem.get(config).delete(demuxData, false);
         
-        // -----------------------------------------------------------------
-        // Merge the output in HDFS back into a file, and place it in S3.
-        // -----------------------------------------------------------------
-
-        //Merger.merge(config, outputData, new Path(args[1]));
-        //FileSystem.get(config).delete(outputData, false);
+		return 0;
 	}
-	
-	private static void copyNativeToLibPath(JobConf config) throws IOException, URISyntaxException
+	private static void copyNativeToLibPath()
 	{
+		Configuration config = getConfig();
+		
 		URI[] libs = null;
 		if(System.getProperty("os.arch").contains("64"))
 			libs = nativeLibs64;
@@ -171,28 +161,54 @@ public class TranscodeJob {
 				
 				String libPath = libSplit[0];
 				String libSymlink = javaLibPath + "/" + libSplit[1];
+			
+				try {
+					File tempLocation = File.createTempFile("ffmpegmr-nativelib", ".lib");
+					tempLocation.deleteOnExit();
+					
+					FileSystem fsSrc = FileSystem.get(new URI(libPath), config);
+					FileSystem fsDst = FileSystem.get(new URI("file://" + tempLocation.getAbsolutePath()), config);
+					FileUtil.copy(fsSrc, new Path(libPath) , fsDst, new Path("file://" + tempLocation.getAbsolutePath()), false, true, config);
+					
+					// Symlink the so version.
+					FileUtil.symLink(tempLocation.getAbsolutePath(), libSymlink);
+					new File(libSymlink).deleteOnExit();
+					
+					// Symlink the unversioned so as well.
+					// TODO: make this work on no linux platforms.
+					if(!libSymlink.endsWith(".so")){
+						String libSymlink2 = libSymlink.substring(0, libSymlink.lastIndexOf(".so") + 3);
+						FileUtil.symLink(tempLocation.getAbsolutePath(), libSymlink2);
+						new File(libSymlink2).deleteOnExit();
+					}
 				
-				File tempLocation = File.createTempFile("ffmpegmr-nativelib", ".lib");
-				tempLocation.deleteOnExit();
-				
-				FileSystem fsSrc = FileSystem.get(new URI(libPath), config);
-				FileSystem fsDst = FileSystem.get(new URI("file://" + tempLocation.getAbsolutePath()), config);
-				FileUtil.copy(fsSrc, new Path(libPath) , fsDst, new Path("file://" + tempLocation.getAbsolutePath()), false, true, config);
-				
-				// Symlink the so version.
-				FileUtil.symLink(tempLocation.getAbsolutePath(), libSymlink);
-				new File(libSymlink).deleteOnExit();
-				
-				// Symlink the unversioned so as well.
-				// TODO: make this work on no linux platforms.
-				if(!libSymlink.endsWith(".so")){
-					String libSymlink2 = libSymlink.substring(0, libSymlink.lastIndexOf(".so") + 3);
-					FileUtil.symLink(tempLocation.getAbsolutePath(), libSymlink2);
-					new File(libSymlink2).deleteOnExit();
+				} catch (IOException e) {
+					Printer.println("Failed to load native lib: " + lib.toASCIIString());
+					e.printStackTrace();
+				} catch (URISyntaxException e) {
+					Printer.println("Native lib URI incorrect: " + lib.toASCIIString());
+					e.printStackTrace();
 				}
 				
 			}
 		}
 	}
 	
+	public static void main(String[] args) throws Exception {	
+		Configuration config = getConfig();
+		
+		// Run the job.
+        int res = ToolRunner.run(config, new TranscodeJob(), args);
+        System.exit(res);
+	}
+		
+	public static Configuration getConfig() {
+		Configuration config = new Configuration();
+		config.set("fs.s3.awsAccessKeyId", "01MDAYB509VJ53B2EK02");
+		config.set("fs.s3.awsSecretAccessKey", "zwajpazry7Me7tnbYaw3ldoj5mbRDMFMHqYHgDmv");
+		config.set("fs.s3n.awsAccessKeyId", "01MDAYB509VJ53B2EK02");
+		config.set("fs.s3n.awsSecretAccessKey", "zwajpazry7Me7tnbYaw3ldoj5mbRDMFMHqYHgDmv");
+		config.set("mapred.compress.map.output", "fasle");
+		return config;
+	}
 }
