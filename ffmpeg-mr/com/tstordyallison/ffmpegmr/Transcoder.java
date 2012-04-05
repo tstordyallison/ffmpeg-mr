@@ -19,23 +19,23 @@ public class Transcoder
 	
 	public Transcoder(long chunkpointNum, long chunkpointDen, List<Long> outputChunkPoints, byte[] data)
 	{
-		this(chunkpointNum, chunkpointDen, outputChunkPoints, data, 0, 0, 0, 0);
+		this(chunkpointNum, chunkpointDen, outputChunkPoints, data, 0, 0, 0, 0, 0);
 	}
 	
 	public Transcoder(long chunkpointNum, long chunkpointDen, List<Long> outputChunkPoints, byte[] data, 
-					  double videoResScale, double videoCrf, int videoBitrate, int audioBitrate) {
+					  double videoResScale, double videoCrf, int videoBitrate, int audioBitrate, int videoThreads) {
 		int err;
 		long[] chunkPointsNative = new long[outputChunkPoints.size()];
 		for(int i = 0; i < outputChunkPoints.size(); i++)
 			chunkPointsNative[i] = outputChunkPoints.get(i);
 			
 		if((err = initWithBytes(chunkpointNum, chunkpointDen, chunkPointsNative, data, 
-								videoResScale, videoCrf, videoBitrate, audioBitrate)) != 0)
+								videoResScale, videoCrf, videoBitrate, audioBitrate, videoThreads)) != 0)
 			throw new RuntimeException("Transcoder native init failed with code " + err + ". See stderr for more info.");	
 	}
 
 	private native int initWithBytes(long chunkpointNum, long chunkpointDen, long[] chunkPointsNative, byte[] data, 
-									 double videoResScale, double videoCrf, int videoBitrate, int audioBitrate);
+									 double videoResScale, double videoCrf, int videoBitrate, int audioBitrate, int videoThreads);
 	public native DemuxPacket getNextPacket();
 	public native byte[] getStreamData();
 	public native int close();

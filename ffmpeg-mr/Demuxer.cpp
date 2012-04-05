@@ -105,9 +105,15 @@ public:
                 {
                     if(state->stream_data[i] != NULL)
                         free(state->stream_data[i]); // free as these came from tpl.
+                    
+                    if(state->fmt_ctx->streams[i]->codec != NULL)
+                        avcodec_close(state->fmt_ctx->streams[i]->codec);
                 }
             }
             delete[] state->stream_data;
+            
+            if(state->common_tb != NULL)
+                delete[] state->common_tb;
             
             // Free the stream size data.
             if(state->stream_data_sizes != NULL)
@@ -233,9 +239,9 @@ static int init_demux(JNIEnv *env, jobject obj, DemuxState *state){
                 state->common_tb[i].den = AV_TIME_BASE * 1000;
             }
             
-            if(DEBUG)
+#ifdef DEBUG
                 fprintf(stderr, "Modified tb (%d): %d/%d (1/=%2.2f)\n", i, state->common_tb[i].num, state->common_tb[i].den, (float)state->common_tb[i].den/state->common_tb[i].num);
-            
+#endif
         }
         
     }
@@ -309,8 +315,7 @@ JNIEXPORT jint JNICALL Java_com_tstordyallison_ffmpegmr_Demuxer_initDemuxWithFil
     int ret = init_demux(env, obj, state);
     
     // Deallocs
-    if(filename_copy == JNI_TRUE)
-        env->ReleaseStringUTFChars(jfilename, filename);
+    env->ReleaseStringUTFChars(jfilename, filename);
     
     return ret;
 }

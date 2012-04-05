@@ -1,0 +1,89 @@
+{
+  "name": "Multi Threaded Bench Test (4 threads)",
+  "description": "",
+  "instanceIncrement": 2,
+  "endInstanceCount": 6,
+  "jobSubmissionUri": "s3n://ffmpeg-mr/job-submissions/Bench-MultiThreadedBenchTest(4threads).json",
+  "resultsUri": "s3n://ffmpeg-mr/results/MultiThreadedBenchTest(4threads)-20120404-124830",
+  "settings": {
+    "flowName": "ffmpeg-mr: Threading Tests - 4 map tasks.",
+    "instanceCount": 2,
+    "instanceType": "c1.xlarge",
+    "bidPrice": "0.40",
+    "numberOfMapTasksPerMachine": 4,
+    "numberOfReduceTasksPerMachine": 4,
+    "numberOfVideoThreads": 4,
+    "instanceMarketType": "SPOT",
+    "reuseJVMTaskCount": 1,
+    "masterInstanceType": "m1.large",
+    "masterBidPrice": "0.30",
+    "masterMarketType": "SPOT",
+    "createNewCluster": true,
+    "jobFlowID": "j-2A39OXE9EHIOM",
+    "debugging": false,
+    "keepClusterAlive": false,
+    "performNativeBuild": false,
+    "uploadJar": true,
+    "skipFailedJobs": true
+  },
+  "jobSubmission": {
+    "jobs": [
+      {
+        "jobName": "3. Small MP4 Test (Raw Copy)",
+        "inputUri": "s3n://ffmpeg-mr/testcandidates/Test3.mp4",
+        "inputType": "RawFileCopy",
+        "outputUri": "s3n://ffmpeg-mr/output/Test3.mp4.mkv",
+        "outputType": "RawFile",
+        "videoResScale": 1.0,
+        "videoCrf": 21.0,
+        "videoBitrate": 512000,
+        "audioBitrate": 64000,
+        "videoThreads": 4,
+        "overwrite": true,
+        "demuxGOPBlocks": false
+      },
+      {
+        "jobName": "4. Medium AVI Test (Raw Copy)",
+        "inputUri": "s3n://ffmpeg-mr/testcandidates/Test4.avi",
+        "inputType": "RawFileCopy",
+        "outputUri": "s3n://ffmpeg-mr/output/Test4.avi.mkv",
+        "outputType": "RawFile",
+        "videoResScale": 1.0,
+        "videoCrf": 21.0,
+        "videoBitrate": 512000,
+        "audioBitrate": 64000,
+        "videoThreads": 4,
+        "overwrite": true,
+        "demuxGOPBlocks": false
+      },
+      {
+        "jobName": "5. Medium M4V Test (Raw Copy)",
+        "inputUri": "s3n://ffmpeg-mr/testcandidates/Test5.m4v",
+        "inputType": "RawFileCopy",
+        "outputUri": "s3n://ffmpeg-mr/output/Test5.m4v.mkv",
+        "outputType": "RawFile",
+        "videoResScale": 1.0,
+        "videoCrf": 21.0,
+        "videoBitrate": 512000,
+        "audioBitrate": 64000,
+        "videoThreads": 4,
+        "overwrite": true,
+        "demuxGOPBlocks": false
+      },
+      {
+        "jobName": "6. HD M4V Test (Raw Copy)",
+        "inputUri": "s3n://ffmpeg-mr/testcandidates/Test6.m4v",
+        "inputType": "RawFileCopy",
+        "outputUri": "s3n://ffmpeg-mr/output/Test6.m4v.mkv",
+        "outputType": "RawFile",
+        "videoResScale": 1.0,
+        "videoCrf": 21.0,
+        "videoBitrate": 512000,
+        "audioBitrate": 64000,
+        "videoThreads": 4,
+        "overwrite": true,
+        "demuxGOPBlocks": false
+      }
+    ]
+  }
+}

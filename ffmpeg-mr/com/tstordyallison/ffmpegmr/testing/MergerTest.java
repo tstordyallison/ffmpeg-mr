@@ -16,8 +16,8 @@ public class MergerTest {
 //		Merger.merge(TranscodeJob.getConfig(), "s3n://ffmpeg-mr/output/m4v-ffmpeg-mr-11822f58-0a6c-4e91-9367-ae24d37e1a8b/",
 //				             "file:///Users/tom/Code/fyp/example-videos/TestOutput.m4v");
 		
-		Merger.merge(TranscodeJob.getConfig(), "s3n://ffmpeg-mr/output/Test.m4v-ffmpeg-mr-9c6c41cc-313e-4c82-958f-78c3492369c9/",
-	             			 "file:///Users/tom/Code/fyp/example-videos/TestM4vOutput.mkv");
+		Merger.merge(TranscodeJob.getConfig(), "s3n://ffmpeg-mr/output/Test4.avi.mkv",
+	             			 "file:///Users/tom/Code/fyp/example-videos/TestOutput.mkv");
 	}
 
 }

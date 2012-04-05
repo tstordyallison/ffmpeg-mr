@@ -5,15 +5,13 @@ public class NativeUtil {
 
 	public static void loadFFmpegMR()
 	{
-        if(!System.getProperty("os.arch").contains("64"))
-			throw new RuntimeException("Only 64bit Linux platforms are currently supported on the TaskTrackers.");
-		
 		loadLibraryWithFailureAllowed("mp3lame");
 		loadLibraryWithFailureAllowed("faac");
 		loadLibraryWithFailureAllowed("x264");
 		loadLibraryWithFailureAllowed("avutil");
 		loadLibraryWithFailureAllowed("avcodec");
 		loadLibraryWithFailureAllowed("avformat");
+		loadLibraryWithFailureAllowed("swscale");
 		System.loadLibrary("ffmpeg-mr");
 	}
 	
@@ -23,7 +21,7 @@ public class NativeUtil {
 		}
 		catch(UnsatisfiedLinkError e)
 		{
-			Printer.println("WARNING: loadLibrary() call for " + libname + " failed. Dependencies may also fail.");
+			System.err.println("WARNING: loadLibrary() call for " + libname + " failed. Dependencies may also fail.");
 		}
 	}
 }

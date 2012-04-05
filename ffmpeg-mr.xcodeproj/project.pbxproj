@@ -57,6 +57,7 @@
 		E2C35A77145708D600902770 /* main.c in Sources */ = {isa = PBXBuildFile; fileRef = E2C35A76145708D600902770 /* main.c */; };
 		E2C35A811457093B00902770 /* libbz2.1.0.5.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = E24208C2144CB96600E11A39 /* libbz2.1.0.5.dylib */; };
 		E2C35A841457094200902770 /* libz.1.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = E24208C3144CB96600E11A39 /* libz.1.dylib */; };
+		E2C9657415210633001BC19A /* libswscale.a in Frameworks */ = {isa = PBXBuildFile; fileRef = E261B90A1445FE960041422A /* libswscale.a */; };
 		E2C9C90314D7089A007668A0 /* com_tstordyallison_ffmpegmr_Transcoder.h in Headers */ = {isa = PBXBuildFile; fileRef = E2C9C90214D7089A007668A0 /* com_tstordyallison_ffmpegmr_Transcoder.h */; };
 		E2C9C90514D72219007668A0 /* Transcoder.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E2C9C90414D72219007668A0 /* Transcoder.cpp */; };
 		E2C9C90A14D72320007668A0 /* JNI.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E2C9C90914D7231F007668A0 /* JNI.cpp */; };
@@ -134,7 +135,7 @@
 		E2C9C90B14D74266007668A0 /* SharedUtil.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = SharedUtil.cpp; sourceTree = "<group>"; };
 		E2C9C90D14D74280007668A0 /* SharedUtil.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = SharedUtil.h; sourceTree = "<group>"; };
 		E2EE7AF3151208A8003E2646 /* pts-ffmpeg.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = "pts-ffmpeg.cpp"; sourceTree = "<group>"; };
-		E2F0738914DFF7F8001B43B9 /* libmp3lame.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libmp3lame.a; path = ../../../../../usr/local/lib/libmp3lame.a; sourceTree = "<group>"; };
+		E2F0738914DFF7F8001B43B9 /* libmp3lame.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libmp3lame.a; path = /usr/local/lib/libmp3lame.a; sourceTree = "<absolute>"; };
 		E2F1ECD21518A59400564BAA /* com_tstordyallison_ffmpegmr_Merger.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = com_tstordyallison_ffmpegmr_Merger.h; sourceTree = "<group>"; };
 		E2F1ECD41518A5C600564BAA /* Merger.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = Merger.cpp; sourceTree = "<group>"; };
 		E2F96EBC1510BF2100E71CAA /* com_tstordyallison_ffmpegmr_Remuxer.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = com_tstordyallison_ffmpegmr_Remuxer.h; sourceTree = "<group>"; };
@@ -151,6 +152,7 @@
 				E297DCA8150BB8C40027B9EC /* libavformat.a in Frameworks */,
 				E297DCA6150BB8B60027B9EC /* libavcodec.a in Frameworks */,
 				E297DCA7150BB8C10027B9EC /* libavutil.a in Frameworks */,
+				E2C9657415210633001BC19A /* libswscale.a in Frameworks */,
 				E2FEFEFC14F9668A006F7181 /* QuartzCore.framework in Frameworks */,
 				E2FEFEFA14F9667D006F7181 /* VideoDecodeAcceleration.framework in Frameworks */,
 				E2FEFEF714F96672006F7181 /* CoreFoundation.framework in Frameworks */,
@@ -213,6 +215,7 @@
 		E261B9131445FEC20041422A /* ffmpeg Libraries */ = {
 			isa = PBXGroup;
 			children = (
+				E2F0738914DFF7F8001B43B9 /* libmp3lame.a */,
 				E2A45C73150A568B00D5DE5A /* libx264.dylib */,
 				E250D02914FA4AB700394E0F /* libfaac.dylib */,
 				E24208C2144CB96600E11A39 /* libbz2.1.0.5.dylib */,
@@ -285,7 +288,6 @@
 			isa = PBXGroup;
 			children = (
 				E261B9031445FE960041422A /* libavcodec.a */,
-				E2F0738914DFF7F8001B43B9 /* libmp3lame.a */,
 				E261B9041445FE960041422A /* libavdevice.a */,
 				E261B9051445FE960041422A /* libavfilter.a */,
 				E261B9061445FE960041422A /* libavformat.a */,
@@ -424,14 +426,14 @@
 /* Begin PBXShellScriptBuildPhase section */
 		E24208AD144C3E2100E11A39 /* ShellScript */ = {
 			isa = PBXShellScriptBuildPhase;
-			buildActionMask = 8;
+			buildActionMask = 12;
 			files = (
 			);
 			inputPaths = (
 			);
 			outputPaths = (
 			);
-			runOnlyForDeploymentPostprocessing = 1;
+			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
 			shellScript = "cd $PROJECT_DIR/$PROJECT/\njavah -jni com.tstordyallison.ffmpegmr.Transcoder\njavah -jni com.tstordyallison.ffmpegmr.Demuxer\njavah -jni com.tstordyallison.ffmpegmr.Remuxer\njavah -jni com.tstordyallison.ffmpegmr.Merger";
 		};
@@ -562,7 +564,6 @@
 					"\"$(SRCROOT)/../ffmpeg/libpostproc\"",
 					"\"$(SRCROOT)/../ffmpeg/libswresample\"",
 					"\"$(SRCROOT)/../ffmpeg/libswscale\"",
-					"\"$(SRCROOT)/../x264\"",
 				);
 				PRESERVE_DEAD_CODE_INITS_AND_TERMS = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -592,7 +593,6 @@
 					"\"$(SRCROOT)/../ffmpeg/libpostproc\"",
 					"\"$(SRCROOT)/../ffmpeg/libswresample\"",
 					"\"$(SRCROOT)/../ffmpeg/libswscale\"",
-					"\"$(SRCROOT)/../x264\"",
 				);
 				PRESERVE_DEAD_CODE_INITS_AND_TERMS = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";

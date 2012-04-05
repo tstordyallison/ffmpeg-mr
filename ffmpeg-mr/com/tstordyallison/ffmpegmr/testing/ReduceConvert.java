@@ -12,11 +12,10 @@ import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.BytesWritable;
 import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.SequenceFile;
-import org.apache.hadoop.mapred.JobConf;
 
+import com.tstordyallison.ffmpegmr.emr.Logger;
 import com.tstordyallison.ffmpegmr.hadoop.TranscodeJob;
 import com.tstordyallison.ffmpegmr.util.FileUtils;
-import com.tstordyallison.ffmpegmr.util.Printer;
 import com.tstordyallison.ffmpegmr.util.ThreadCatcher;
 
 public class ReduceConvert {
@@ -31,7 +30,7 @@ public class ReduceConvert {
 	 */
 	public static void main(String[] args) throws InstantiationException, IllegalAccessException, IOException, InterruptedException, URISyntaxException {
 		Thread.setDefaultUncaughtExceptionHandler(new ThreadCatcher()); 
-		Printer.ENABLED = true;
+		Logger.Printer.ENABLED = true;
 		
 		if(args.length == 2)
 		{
@@ -54,24 +53,25 @@ public class ReduceConvert {
 	
 	public static void runConversion(String inputUri, String outputPrefix) throws InstantiationException, IllegalAccessException, IOException, InterruptedException, URISyntaxException
 	{
+		Configuration config = TranscodeJob.getConfig();
 		
-		Printer.println("Converting " + inputUri + "...");
+		Logger.println(config, "Converting " + inputUri + "...");
 		
-		FileSystem fs = FileSystem.get(new URI(inputUri), TranscodeJob.getConfig());
+		FileSystem fs = FileSystem.get(new URI(inputUri), config);
 		
 		for(FileStatus item : fs.listStatus(new Path(inputUri)))
 		{
 			if(item.getPath().toUri().toString().contains("part-")){
-				SequenceFile.Reader reader = new SequenceFile.Reader(fs, item.getPath(), TranscodeJob.getConfig());
+				SequenceFile.Reader reader = new SequenceFile.Reader(fs, item.getPath(), config);
 
 				LongWritable key = (LongWritable)reader.getKeyClass().newInstance(); 
 				BytesWritable value = (BytesWritable)reader.getValueClass().newInstance();
 			
-				Printer.println("Reduce file: " + item.getPath());
+				Logger.println(config, "Reduce file: " + item.getPath());
 				
 				// Read in all the chunks and sort them in memory.
 				while (reader.next(key, value)){
-					Printer.println("Reduce output: ts=" + key.get() + ", size=" + FileUtils.humanReadableByteCount(value.getLength(), false) + "(" + value.getLength() + " bytes)");
+					Logger.println(config, "Reduce output: ts=" + key.get() + ", size=" + FileUtils.humanReadableByteCount(value.getLength(), false) + "(" + value.getLength() + " bytes)");
 					
 					File outputFile = new File(outputPrefix + "."  + key.get());
 					FileOutputStream outputStream = new FileOutputStream(outputFile);
@@ -82,7 +82,7 @@ public class ReduceConvert {
 			}	
 		}
 		
-		Printer.println("Sucessfully ran reduce test for " + inputUri + ".");
+		Logger.println(config, "Sucessfully ran reduce test for " + inputUri + ".");
 	}
 
 

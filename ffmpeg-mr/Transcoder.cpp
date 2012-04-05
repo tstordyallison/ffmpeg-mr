@@ -110,9 +110,8 @@ typedef struct TranscoderState {
         
         decoder_flushing = 0;
         
-        raw_audio = NULL; //avcodec_alloc_frame(); avcodec_get_frame_defaults(raw_audio);
-        raw_video = avcodec_alloc_frame(); avcodec_get_frame_defaults(raw_video);
-        //avcodec_get_frame_defaults(&this->resample_frame);
+        raw_audio = NULL;
+        raw_video = avcodec_alloc_frame();
         
         fifo = av_fifo_alloc(1024);
         
@@ -163,21 +162,19 @@ typedef struct TranscoderState {
         
         if(raw_audio != NULL)
         {
-            // TODO: free internal frame contents?
-            av_free(raw_audio);
-            raw_audio = NULL;
+            av_freep(&raw_audio);
         }
         
         if(raw_video != NULL)
         {
-            // TODO: free internal frame contents?
-            av_free(raw_video);
-            raw_video = NULL;
+            av_freep(&raw_video);
         }
         
         if(input_packet){
-            if(input_packet->data)
+            if(input_packet->data){
                 av_free_packet(input_packet);
+                av_freep(&input_packet);
+            }
             else
                 av_free(input_packet);
         }
@@ -301,7 +298,7 @@ static void video_resample(TranscoderState *state)
             sws_freeContext(state->img_resample_ctx);
             state->img_resample_ctx = sws_getContext(in_picture->width, in_picture->height, (enum PixelFormat)in_picture->format,
                                                      enc->width, enc->height, enc->pix_fmt,
-                                                     SWS_BILINEAR, NULL, NULL, NULL);
+                                                     SWS_BICUBIC, NULL, NULL, NULL);
             if (state->img_resample_ctx == NULL) {
                 av_log(NULL, AV_LOG_FATAL, "Cannot get resampling context\n");
             }
@@ -309,7 +306,6 @@ static void video_resample(TranscoderState *state)
         
         // Init our new out picture.
         AVFrame *new_frame = avcodec_alloc_frame();
-        avcodec_get_frame_defaults(new_frame);
         avpicture_alloc((AVPicture *)new_frame, enc->pix_fmt, enc->width, enc->height);
                 
         // Resample.
@@ -322,7 +318,9 @@ static void video_resample(TranscoderState *state)
         new_frame->pts = in_picture->pts;
         
         // Replace raw video.
-        avpicture_free((AVPicture *)&state->raw_video);
+        //avpicture_free((AVPicture *)state->raw_video);
+        if(state->raw_video != NULL)
+            av_freep(&(state->raw_video));
         state->raw_video = new_frame;
     }
 }
@@ -385,8 +383,7 @@ static int decode_packet(JNIEnv *env, TranscoderState *state)
                     if(state->decoder->codec->capabilities & CODEC_CAP_DELAY)
                     {
                         // Set the input packet data and size to NULL - this tells the encoder that we want it to flush.
-                        state->input_packet->data = NULL;
-                        state->input_packet->size = 0;
+                        av_free_packet(state->input_packet);
                         state->decoder_flushing = 1;
                     }
                     else
@@ -566,7 +563,6 @@ static int decode_packet(JNIEnv *env, TranscoderState *state)
             {
                 // Do a normal read from the TPL images and decode the packet into the fifo or state->raw_audio.
                 int got_samples = 0;
-                AVFrame *decoded_frame = avcodec_alloc_frame(); avcodec_get_frame_defaults(decoded_frame);
                 while(!got_samples)
                 {
                     int ret;
@@ -640,6 +636,7 @@ static int decode_packet(JNIEnv *env, TranscoderState *state)
                     }
                     
                     // Decode.
+                    AVFrame *decoded_frame = avcodec_alloc_frame(); avcodec_get_frame_defaults(decoded_frame);
                     ret = avcodec_decode_audio4(state->decoder, decoded_frame, &got_samples, state->input_packet);
                     
                     // Free input data.
@@ -703,7 +700,7 @@ static int decode_packet(JNIEnv *env, TranscoderState *state)
  */
 JNIEXPORT jint JNICALL Java_com_tstordyallison_ffmpegmr_Transcoder_initWithBytes
 (JNIEnv *env, jobject obj, jlong chunk_tb_num, jlong chunk_tb_den, jlongArray chunk_points, jbyteArray data, 
- jdouble video_res_scale, jdouble video_crf, jint video_bitrate, jint audio_bitrate){
+ jdouble video_res_scale, jdouble video_crf, jint video_bitrate, jint audio_bitrate, jint video_threads){
     
     // Init state;
     int err = 0;
@@ -725,6 +722,8 @@ JNIEXPORT jint JNICALL Java_com_tstordyallison_ffmpegmr_Transcoder_initWithBytes
     if(video_crf > 0)
         video_bitrate = 0;
 
+    if(video_threads < 0)
+        video_threads = 0;
     
     // Copy the chunk over into memory from the JVM.
     state->data_size = env->GetArrayLength(data);
@@ -763,6 +762,7 @@ JNIEXPORT jint JNICALL Java_com_tstordyallison_ffmpegmr_Transcoder_initWithBytes
     {
         AVDictionary *copts = NULL;
         if(initWithBytesThrowNonZero(avcodec_open2(state->decoder, decoder_codec, &copts), "Failed to open decoder codec.", state, env)) return -1;
+        state->decoder->thread_count = video_threads;
     }
     else
     {
@@ -780,9 +780,10 @@ JNIEXPORT jint JNICALL Java_com_tstordyallison_ffmpegmr_Transcoder_initWithBytes
                 AVDictionary *copts = NULL;
                 state->encoder = avcodec_alloc_context3(encoder_codec);
                 state->encoder->flags |= CODEC_FLAG_GLOBAL_HEADER;
-                state->encoder->gop_size = 250;
+                state->encoder->gop_size = 200;
                 state->encoder->keyint_min = 2;
-                state->encoder->max_b_frames = 16;
+                state->encoder->max_b_frames = 3;
+                state->encoder->thread_count = video_threads;
                 if(video_crf){
                     char buf[10];
                     sprintf(buf, "%2.2f", video_crf);
@@ -930,8 +931,9 @@ JNIEXPORT jobject JNICALL Java_com_tstordyallison_ffmpegmr_Transcoder_getNextPac
                     
                     // Advance the decoder/pull the next frame through.
                     if(decode_packet(env, state) != 0){
-                        if(state->encoder->codec->capabilities & CODEC_CAP_DELAY)
-                            state->raw_video = NULL;
+                        if(state->encoder->codec->capabilities & CODEC_CAP_DELAY){
+                            av_freep(&state->raw_video); // This sets raw_video to NULL as well for the flush.
+                        }
                         else
                         {
                             getNextPacket_tidy(state, 0);
@@ -956,7 +958,8 @@ JNIEXPORT jobject JNICALL Java_com_tstordyallison_ffmpegmr_Transcoder_getNextPac
                             new_frame->format = state->raw_video->format;
                             new_frame->pts = state->raw_video->pts;
                             
-                            av_free(state->raw_video); state->raw_video = new_frame;
+                            av_freep(&state->raw_video); 
+                            state->raw_video = new_frame;
                         }
                     
                         // Set the input PTS.
@@ -1049,8 +1052,7 @@ JNIEXPORT jobject JNICALL Java_com_tstordyallison_ffmpegmr_Transcoder_getNextPac
                     // Advance the decoder/pull the next frame through.
                     if(decode_packet(env, state) != 0){
                         if(state->encoder->codec->capabilities & CODEC_CAP_DELAY)
-                            
-                            state->raw_audio = NULL;
+                            av_freep(&state->raw_audio); // This sets raw_audio to NULL as well for the flush.
                         else
                         {
                             getNextPacket_tidy(state, 0);

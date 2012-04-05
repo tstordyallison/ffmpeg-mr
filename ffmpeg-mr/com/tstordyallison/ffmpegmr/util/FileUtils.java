@@ -11,6 +11,8 @@ import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.IOUtils;
 
+import com.tstordyallison.ffmpegmr.emr.Logger;
+
 public class FileUtils {
 	
 	public final static long GIBIBYTE = 1073741824;
@@ -34,9 +36,9 @@ public class FileUtils {
 	   * @param close whether or not close the InputStream and 
 	   * OutputStream at the end. The streams are closed in the finally clause.  
 	   */
-	  public static void copyBytes(InputStream in, OutputStream out, int buffSize, boolean close, long total) throws IOException {
+	  public static void copyBytes(InputStream in, OutputStream out, int buffSize, boolean close, long total, Configuration conf) throws IOException {
 		if(PRINT_INFO)
-			Printer.println("Copy progress: 0%");
+			Logger.println(conf, "Copy progress: 0%");
 		long bytesCounter = 0;
 		int percentage = 0;
 		PrintStream ps = out instanceof PrintStream ? (PrintStream) out : null;
@@ -53,8 +55,10 @@ public class FileUtils {
 					percentage = newPercentage;
 				    if(percentage % 5 == 0)
 						if(PRINT_INFO)
-							Printer.println(String.format("Copy progress: %d%%", percentage));
+							Logger.println(conf, String.format("Copy progress: %d%%", percentage));
 				}
+				
+				
 				if ((ps != null) && ps.checkError()) {
 					throw new IOException("Unable to write to output stream.");
 				}
@@ -78,9 +82,14 @@ public class FileUtils {
 	   */
 	  public static void copyBytes(InputStream in, OutputStream out, Configuration conf, boolean close, long total)
 	    throws IOException {
-	    copyBytes(in, out, conf.getInt("io.file.buffer.size", 4096),  close, total);
+	    copyBytes(in, out, conf.getInt("io.file.buffer.size", 4096),  close, total, conf);
 	  }
 
+	public static boolean copy(Path src, Path dst, boolean deleteSource, boolean overwrite, Configuration conf) throws IOException {
+		FileSystem srcFS = FileSystem.get(src.toUri(), conf);
+		FileSystem dstFS = FileSystem.get(dst.toUri(), conf);
+		return copy(srcFS, src, dstFS, dst, deleteSource, overwrite, conf);
+	}
 	  
 	  /** Copy files between FileSystems. */
 	public static boolean copy(FileSystem srcFS, Path src, FileSystem dstFS, Path dst, boolean deleteSource, boolean overwrite, Configuration conf) throws IOException {
@@ -100,7 +109,7 @@ public class FileUtils {
 				out = dstFS.create(dst, overwrite);
 				long len = srcFS.getFileStatus(src).getLen();
 				if(PRINT_INFO)
-					Printer.println("Copying " + src.toUri().toString() + " to " + dst.toUri().toString() + " (" + humanReadableByteCount(len, false) + ")...");
+					Logger.println(conf, "Copying " + src.toUri().toString() + " to " + dst.toUri().toString() + " (" + humanReadableByteCount(len, false) + ")...");
 				copyBytes(in, out, conf, true, len);
 			} catch (IOException e) {
 				IOUtils.closeStream(out); 

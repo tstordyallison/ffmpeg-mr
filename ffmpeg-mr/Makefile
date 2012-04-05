@@ -11,8 +11,8 @@ LDFLAGS=-L../../build-ouptut/lib
 
 all: $(OUTPUT)
 
-$(OUTPUT): JNI.o SharedUtil.o ffmpeg_tpl.o Muxer.o Demuxer.o Transcoder.o
-	$(CCPP) -shared -Wl ffmpeg_tpl.o tpl.o JNI.o SharedUtil.o Demuxer.o Muxer.o Transcoder.o -lavcodec -lavformat -lavutil -lmp3lame -lx264 -lfaac -lz -lbz2 $(LDFLAGS) -o $(OUTPUT)
+$(OUTPUT): JNI.o SharedUtil.o ffmpeg_tpl.o Muxer.o Demuxer.o Transcoder.o Merger.o
+	$(CCPP) -shared -Wl ffmpeg_tpl.o tpl.o JNI.o SharedUtil.o Demuxer.o Muxer.o Transcoder.o Merger.o -lavcodec -lavformat -lavutil -lmp3lame -lswscale -lx264 -lfaac -lz -lbz2 $(LDFLAGS) -o $(OUTPUT)
 
 JNI.o: JNI.cpp
 	$(CCPP) $(CFLAGS) JNI.cpp
@@ -31,6 +31,9 @@ Demuxer.o: Demuxer.cpp
 	
 Muxer.o: Muxer.cpp
 	$(CCPP) $(CFLAGS) Muxer.cpp
+	
+Merger.o: Merger.cpp
+	$(CCPP) $(CFLAGS) Merger.cpp
 
 Transcoder.o: Transcoder.cpp
 	$(CCPP) $(CFLAGS) Transcoder.cpp

@@ -4,14 +4,13 @@ import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.mapreduce.Partitioner;
 
 import com.tstordyallison.ffmpegmr.Chunk;
-import com.tstordyallison.ffmpegmr.util.Printer;
 
 public class TranscodePartitioner extends Partitioner<LongWritable, Chunk> {
 
 	@Override
 	public int getPartition(LongWritable ts, Chunk chunk, int numPartitions) {
 		int partition = getPartitionImpl(ts.get(), chunk.getChunkID().getStreamDuration(), numPartitions);
-		Printer.println("Chunk with TS: " + ts.get()+1 + " allocated reducer " + partition + "/" + numPartitions);
+		System.out.println("Chunk with TS: " + (ts.get()+1) + " allocated reducer " + partition + "/" + numPartitions);
 		return partition;
 	}
 	

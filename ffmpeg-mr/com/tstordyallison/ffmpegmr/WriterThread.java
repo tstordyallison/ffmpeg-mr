@@ -12,8 +12,10 @@ import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.IOUtils;
 import org.apache.hadoop.io.SequenceFile;
 import org.apache.hadoop.io.SequenceFile.CompressionType;
+import org.apache.hadoop.io.SequenceFile.Metadata;
+import org.apache.hadoop.io.compress.DefaultCodec;
 
-import com.tstordyallison.ffmpegmr.util.Printer;
+import com.tstordyallison.ffmpegmr.emr.Logger;
 
 public class WriterThread extends Thread{
 
@@ -32,23 +34,31 @@ public class WriterThread extends Thread{
 	private Path path;
 	private SequenceFile.Writer writer = null; 
 	private int blockSize = BLOCK_SIZE;
+	private Logger logger;
 	
-	public WriterThread(Configuration conf, BlockingQueue<Chunk> chunkQ, String outputUri, String name) {
+	public WriterThread(Configuration conf, BlockingQueue<Chunk> chunkQ, String outputUri, String name, int blockSize) {
 		super(name);
 		this.conf = conf;
 		this.chunkQ = chunkQ;
 		this.outputUri = outputUri;
+		this.blockSize = blockSize;
+		logger = new Logger(conf);
 		initFileSystem(conf, chunkQ,outputUri);
 	}
-
 	private void initFileSystem(Configuration conf, BlockingQueue<Chunk> chunkQ, String outputUri)
 	{	
 		// Connect to the ouptut filesystem.
 		try {
-			conf.setInt("dfs.block.size", blockSize);
+			int writerBlockSize;
+			if(blockSize == 0)
+				writerBlockSize = BLOCK_SIZE/4; // 4Mb.
+			else
+				writerBlockSize = blockSize;
+			
 			fs = FileSystem.get(URI.create(outputUri), conf);
 			path = new Path(outputUri);
-			writer = SequenceFile.createWriter(fs, conf, path, ChunkID.class, ChunkData.class, CompressionType.NONE);
+			writer = SequenceFile.createWriter(fs, conf, path, ChunkID.class, ChunkData.class, fs.getConf().getInt("io.file.buffer.size", 4096),
+		            fs.getDefaultReplication(), writerBlockSize,CompressionType.NONE, new DefaultCodec(), null, new Metadata());
 		} catch (IOException e) {
 			System.err.println("IO Error connecting to FS:");
 			e.printStackTrace();
@@ -79,7 +89,7 @@ public class WriterThread extends Thread{
 					// If this is the null marker, end.
 					if(chunk.getChunkData() == null)
 					{
-						Printer.println("Writing of final chunk complete. Writer thread stopping.");
+						logger.println("Writing of final chunk complete. Writer thread stopping.");
 						break;
 					}
 					
@@ -89,7 +99,7 @@ public class WriterThread extends Thread{
 					if(FILE_PER_CHUNK)
 						writer.close();
 					if(PRINT_WRITE)
-						Printer.println("Written: " + chunk.toString());
+						logger.println("Written: " + chunk.toString());
 				}
 			}
 			

@@ -21,8 +21,8 @@ import org.apache.hadoop.fs.Path;
 import org.joda.time.Period;
 import org.joda.time.format.PeriodFormat;
 
+import com.tstordyallison.ffmpegmr.emr.Logger;
 import com.tstordyallison.ffmpegmr.util.FileUtils;
-import com.tstordyallison.ffmpegmr.util.Printer;
 
 public class ChunkerThread extends Thread {
 	
@@ -144,8 +144,8 @@ public class ChunkerThread extends Thread {
 								Collections.sort(testChunk.getOutputChunkPoints());
 							}
 							else{
-								Printer.println("Failure chunk:" + testChunk.toString());
-								Printer.println("Current chunk:" + chunkID.toString());
+								logger.println("Failure chunk:" + testChunk.toString());
+								logger.println("Current chunk:" + chunkID.toString());
 								throw new RuntimeException("A previously allocated chunk could not be modified to correct its chunk point list.");
 							}
 						}
@@ -163,9 +163,9 @@ public class ChunkerThread extends Thread {
 				// We are now in a state where we could fail to remux all of the streams properly in the 
 				// reducer. 
 
-				Printer.println("Failure chunk:" + endTSChunkID.toString());
-				Printer.println("Current chunk:" + chunkID.toString());
-				Printer.println(endTSChunkID.getMillisecondsEndTs() + " > " + chunkID.getMillisecondsEndTs());
+				logger.println("Failure chunk:" + endTSChunkID.toString());
+				logger.println("Current chunk:" + chunkID.toString());
+				logger.println(endTSChunkID.getMillisecondsEndTs() + " > " + chunkID.getMillisecondsEndTs());
 				throw new RuntimeException("This file has TS monoticity errors and cannot be chunked.");
 			}
 			
@@ -230,9 +230,9 @@ public class ChunkerThread extends Thread {
 		
 	}
 
-	public static double AUDIO_CHUNK_SIZE_FACTOR = 2;
+	public static double AUDIO_CHUNK_SIZE_FACTOR = 1;
 	public static double VIDEO_CHUNK_SIZE_FACTOR = 1;
-	public static boolean FORCE_STREAM = true;
+	public static boolean FORCE_STREAM = false;
 	
 	private BlockingQueue<Chunk> chunkQ;
 	private FSDataInputStream in;
@@ -243,8 +243,11 @@ public class ChunkerThread extends Thread {
 	
 	private long streamDuration;
 
+	private Logger logger;
+	
 	public ChunkerThread(Configuration config, BlockingQueue<Chunk> chunkQ, String inputUri, long blockSize, String name) throws IOException, URISyntaxException {
 		super(name);
+		logger = new Logger(config);
 		initDemuxer(config, chunkQ, inputUri, blockSize);
 	}
 	
@@ -253,7 +256,7 @@ public class ChunkerThread extends Thread {
 		this.chunkQ = chunkQ;
 		
 		if(FORCE_STREAM || !inputUri.startsWith("file://")){
-			Printer.println("Reading using Hadoop FS.");
+			logger.println("Reading using Hadoop FS.");
 			
 			// Open up the filesystem for reading.
 			if(config == null)
@@ -267,7 +270,7 @@ public class ChunkerThread extends Thread {
 		}
 		else
 		{
-			Printer.println("Reading using native file IO.");
+			logger.println("Reading using native file IO.");
 			this.demuxer = new Demuxer(new File(inputUri.substring(7)));
 		}
 		
@@ -275,14 +278,17 @@ public class ChunkerThread extends Thread {
 		this.streamDuration = this.demuxer.getDurationMs();
 		
 		if(this.streamDuration > 0)
-			Printer.println("File duration esitimate: " + PeriodFormat.getDefault().print(new Period(this.streamDuration)));
+			logger.println("File duration esitimate: " + PeriodFormat.getDefault().print(new Period(this.streamDuration)));
 		
 		blockSizes = new long[this.demuxer.getStreamCount()];
 		for(int i = 0; i < this.demuxer.getStreamCount(); i++)
 		{
 			switch (this.demuxer.getStreamMediaType(i)) {
 			case AUDIO:
-				blockSizes[i] = (long)(AUDIO_CHUNK_SIZE_FACTOR * blockSize);
+				if(blockSize > 0)
+					blockSizes[i] = (long)(AUDIO_CHUNK_SIZE_FACTOR * blockSize);
+				else
+					blockSizes[i] = (long)(16777216);
 				break;
 			case VIDEO:
 				blockSizes[i] = (long)(VIDEO_CHUNK_SIZE_FACTOR * blockSize);
@@ -313,7 +319,8 @@ public class ChunkerThread extends Thread {
 					if(chunk != null)
 						chunkQ.put(chunk); // This will block until the queue has space.
 					else
-						Printer.println("WARNING: Demuxer unable to drain chunk smaller than "  + FileUtils.humanReadableByteCount(blockSizes[currentPacket.streamID], false) + ". Try a larger chunk size.");
+						if(blockSizes[currentPacket.streamID] > 0)
+							logger.println("WARNING: Demuxer unable to drain chunk smaller than "  + FileUtils.humanReadableByteCount(blockSizes[currentPacket.streamID], false) + ". Try a larger chunk size.");
 				}
 				
 				// Get the next packet.
@@ -348,7 +355,7 @@ public class ChunkerThread extends Thread {
 			} catch (IOException e) {
 			}
 		}
-		Printer.println("Demuxing complete. Thread ending.");
+		logger.println("Demuxing complete. Thread ending.");
 	}
 
 	public long getPacketCount() {

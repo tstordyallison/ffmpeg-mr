@@ -18,8 +18,8 @@ import com.tstordyallison.ffmpegmr.Chunk;
 import com.tstordyallison.ffmpegmr.ChunkData;
 import com.tstordyallison.ffmpegmr.ChunkID;
 import com.tstordyallison.ffmpegmr.WriterThread;
+import com.tstordyallison.ffmpegmr.emr.Logger;
 import com.tstordyallison.ffmpegmr.hadoop.TranscodeMapper;
-import com.tstordyallison.ffmpegmr.util.Printer;
 import com.tstordyallison.ffmpegmr.util.ThreadCatcher;
 
 public class TransTest {
@@ -27,7 +27,7 @@ public class TransTest {
 	public static void main(String[] args) throws InstantiationException, IllegalAccessException, IOException, InterruptedException {
 		
 		Thread.setDefaultUncaughtExceptionHandler(new ThreadCatcher()); 
-		Printer.ENABLED = true;
+		Logger.Printer.ENABLED = true;
 		
 		if(args.length == 2)
 		{
@@ -52,12 +52,11 @@ public class TransTest {
 	
 	public static void runMapper(String inputUri, String outputUri) throws InstantiationException, IllegalAccessException, IOException, InterruptedException
 	{
-		
-		Printer.println("Mapping " + inputUri + "...");
-		
 		Configuration config = new Configuration();
 		Path path = new Path(inputUri);
 		SequenceFile.Reader reader = new SequenceFile.Reader(FileSystem.get(config), path, config);
+		
+		Logger.println(config, "Mapping " + inputUri + "...");
 		
 		TranscodeMapper mapper = new TranscodeMapper();
 		MapDriver<ChunkID,ChunkData,LongWritable,Chunk> driver = new MapDriver<ChunkID,ChunkData,LongWritable,Chunk>(mapper);
@@ -67,7 +66,7 @@ public class TransTest {
 		ChunkData value = (ChunkData)reader.getValueClass().newInstance();
 		
 		BlockingQueue<Chunk> chunkQ = new LinkedBlockingQueue<Chunk>(20);
-		WriterThread writer = new WriterThread(config, chunkQ,  outputUri, "Hadoop FS Writer Thread");
+		WriterThread writer = new WriterThread(config, chunkQ,  outputUri, "Hadoop FS Writer Thread", WriterThread.BLOCK_SIZE);
 		writer.start();
 		 
 		while (reader.next(key, value))
@@ -84,7 +83,7 @@ public class TransTest {
 		
 		writer.join();
 		
-		Printer.println("Sucessfully mapped " + outputUri + ".");
+		Logger.println(config, "Sucessfully mapped " + outputUri + ".");
 		
 	}
 

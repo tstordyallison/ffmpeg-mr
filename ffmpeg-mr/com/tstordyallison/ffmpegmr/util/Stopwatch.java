@@ -12,7 +12,8 @@ public class Stopwatch {
        return this;
     }
     public Stopwatch stop() {
-       stopTime = System.currentTimeMillis();
+    	if(running)
+    		stopTime = System.currentTimeMillis();
        running = false;
        return this;
     }

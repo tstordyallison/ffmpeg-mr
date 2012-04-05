@@ -21,9 +21,9 @@ import org.apache.hadoop.mrunit.types.Pair;
 import com.tstordyallison.ffmpegmr.Chunk;
 import com.tstordyallison.ffmpegmr.ChunkData;
 import com.tstordyallison.ffmpegmr.ChunkID;
+import com.tstordyallison.ffmpegmr.emr.Logger;
 import com.tstordyallison.ffmpegmr.hadoop.RemuxReducer;
 import com.tstordyallison.ffmpegmr.util.FileUtils;
-import com.tstordyallison.ffmpegmr.util.Printer;
 import com.tstordyallison.ffmpegmr.util.ThreadCatcher;
 
 /**
@@ -42,7 +42,7 @@ public class MuxTest {
 	public static void main(String[] args) throws InstantiationException, IllegalAccessException, IOException, InterruptedException {
 		
 		Thread.setDefaultUncaughtExceptionHandler(new ThreadCatcher()); 
-		Printer.ENABLED = true;
+		Logger.Printer.ENABLED = true;
 		
 		if(args.length == 2)
 		{
@@ -63,12 +63,11 @@ public class MuxTest {
 	
 	public static void runReducer(String inputUri, String outputPrefix) throws InstantiationException, IllegalAccessException, IOException, InterruptedException
 	{
-		
-		Printer.println("Reducing " + inputUri + "...");
-		
 		Configuration config = new Configuration();
 		Path path = new Path(inputUri);
 		SequenceFile.Reader reader = new SequenceFile.Reader(FileSystem.get(config), path, config);
+		
+		Logger.println(config, "Reducing " + inputUri + "...");
 		
 		Reducer<LongWritable, Chunk, LongWritable, BytesWritable> reducer = new RemuxReducer();
 		ReduceDriver<LongWritable, Chunk, LongWritable, BytesWritable> driver = new ReduceDriver<LongWritable, Chunk, LongWritable, BytesWritable>(reducer);
@@ -102,7 +101,7 @@ public class MuxTest {
 			//Printer.println("Running reducer for: " + groupedChunks.get(inputKey).toString());
 			List<Pair<LongWritable, BytesWritable>> outputs = driver.run();
 			for(Pair<LongWritable, BytesWritable> output : outputs){
-				Printer.println("Reduce output: ts=" + output.getFirst().get() + ", size=" + FileUtils.humanReadableByteCount(output.getSecond().getLength(), false) + "(" + output.getSecond().getLength() + " bytes)");
+				Logger.println(config, "Reduce output: ts=" + output.getFirst().get() + ", size=" + FileUtils.humanReadableByteCount(output.getSecond().getLength(), false) + "(" + output.getSecond().getLength() + " bytes)");
 				
 				File outputFile = new File(outputPrefix + "."  + output.getFirst().get());
 				FileOutputStream outputStream = new FileOutputStream(outputFile);
@@ -111,7 +110,7 @@ public class MuxTest {
 			}
 		}
 		
-		Printer.println("Sucessfully ran reduce test for " + inputUri + ".");
+		Logger.println(config, "Sucessfully ran reduce test for " + inputUri + ".");
 		
 	}
 

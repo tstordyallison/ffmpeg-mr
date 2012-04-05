@@ -310,7 +310,7 @@ static void process_segment(JNIEnv *env, MergerState *state, AVFormatContext *in
             new_stream->codec->height = old_stream->codec->height;
             new_stream->codec->has_b_frames = old_stream->codec->has_b_frames;
             new_stream->codec->sample_aspect_ratio = old_stream->sample_aspect_ratio;
-            new_stream->codec->ticks_per_frame = old_stream->codec->ticks_per_frame;
+            //new_stream->codec->ticks_per_frame = old_stream->codec->ticks_per_frame;
             new_stream->codec->extradata_size = old_stream->codec->extradata_size;
             new_stream->codec->extradata = (uint8_t *)malloc(old_stream->codec->extradata_size); 
             memcpy(new_stream->codec->extradata, old_stream->codec->extradata, old_stream->codec->extradata_size);
@@ -329,7 +329,6 @@ static void process_segment(JNIEnv *env, MergerState *state, AVFormatContext *in
     }
     
     AVPacket *pkt = (AVPacket *)malloc(sizeof(AVPacket));
-    av_init_packet(pkt);
     
     // Read and then write each of the frames to the new file.
     while(!av_read_frame(input_format_ctx, pkt))
@@ -355,21 +354,15 @@ static void process_segment(JNIEnv *env, MergerState *state, AVFormatContext *in
         }
         
         int ret = av_interleaved_write_frame(state->output_format_context, pkt);
-        av_free_packet(pkt);
+        av_free_packet(pkt); av_init_packet(pkt);
         
         if(DEBUG && ret != 0){
             fprintf(stderr, "Error writing frame (skippped): ret=%d\n", ret);
             print_av_error(ret);
         }
-        
-        pkt = (AVPacket *)malloc(sizeof(AVPacket));
-        av_init_packet(pkt);
     }
     
-    av_free_packet(pkt);
-    
-    // TODO: On the last audio frame, do something clever. Maybe.
-    
+    av_freep(&pkt);
     
     // Increment the segment counter.
     state->segment_count += 1;
@@ -479,8 +472,11 @@ JNIEXPORT void JNICALL Java_com_tstordyallison_ffmpegmr_Merger_closeOutput
             av_write_trailer(state->output_format_context);
             
             // Dealloc any state.
-            av_freep(&state->output_format_context->pb);
+            //avio_close(state->output_format_context->pb);
             avformat_close_input(&state->output_format_context);
+            
+            free(state->last_dts);
+            free(state->last_duration);
         }
         else
         {

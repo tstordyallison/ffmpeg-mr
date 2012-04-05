@@ -7,7 +7,7 @@
 		<key>TestSample.xcscheme</key>
 		<dict>
 			<key>orderHint</key>
-			<integer>5</integer>
+			<integer>6</integer>
 		</dict>
 		<key>ffmpeg-mr-demux.xcscheme</key>
 		<dict>
@@ -17,27 +17,32 @@
 		<key>ffmpeg-mr-full.xcscheme</key>
 		<dict>
 			<key>orderHint</key>
-			<integer>4</integer>
+			<integer>5</integer>
 		</dict>
-		<key>ffmpeg-mr-mapper.xcscheme</key>
+		<key>ffmpeg-mr-job.xcscheme</key>
 		<dict>
 			<key>orderHint</key>
 			<integer>1</integer>
 		</dict>
-		<key>ffmpeg-mr-merge.xcscheme</key>
-		<dict>
-			<key>orderHint</key>
-			<integer>3</integer>
-		</dict>
-		<key>ffmpeg-mr-remux.xcscheme</key>
+		<key>ffmpeg-mr-mapper.xcscheme</key>
 		<dict>
 			<key>orderHint</key>
 			<integer>2</integer>
 		</dict>
+		<key>ffmpeg-mr-merge.xcscheme</key>
+		<dict>
+			<key>orderHint</key>
+			<integer>4</integer>
+		</dict>
+		<key>ffmpeg-mr-remux.xcscheme</key>
+		<dict>
+			<key>orderHint</key>
+			<integer>3</integer>
+		</dict>
 		<key>ffmpeg.xcscheme</key>
 		<dict>
 			<key>orderHint</key>
-			<integer>6</integer>
+			<integer>7</integer>
 		</dict>
 	</dict>
 	<key>SuppressBuildableAutocreation</key>

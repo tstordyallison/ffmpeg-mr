@@ -3,9 +3,9 @@ package com.tstordyallison.ffmpegmr.testing;
 import java.io.IOException;
 import java.net.URISyntaxException;
 
+import com.tstordyallison.ffmpegmr.emr.TranscodeJobDef;
+import com.tstordyallison.ffmpegmr.emr.TranscodeJobDefList;
 import com.tstordyallison.ffmpegmr.hadoop.TranscodeJob;
-import com.tstordyallison.ffmpegmr.hadoop.TranscodeJobDef;
-import com.tstordyallison.ffmpegmr.hadoop.TranscodeJobDefList;
 
 public class OutputTestRun {
 

@@ -1,0 +1,2 @@
+JobID,JobFlowID,InstanceCount,MapTaskCount,JobCounter,RawCopyIn,Demux,HadoopJob,Merge,RawCopyOut,Job,JobRun
+JobID,JobFlowID,InstanceCount,MapTaskCount,JobCounter,RawCopyIn,Demux,HadoopJob,Merge,RawCopyOut,Job,JobRun

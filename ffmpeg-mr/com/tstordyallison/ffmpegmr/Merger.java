@@ -16,9 +16,9 @@ import org.apache.hadoop.io.BytesWritable;
 import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.SequenceFile;
 
+import com.tstordyallison.ffmpegmr.emr.Logger;
 import com.tstordyallison.ffmpegmr.util.FileUtils;
 import com.tstordyallison.ffmpegmr.util.NativeUtil;
-import com.tstordyallison.ffmpegmr.util.Printer;
 
 /**
  * This object uses FFmpeg to take several segments of output and merge them into one final file.
@@ -99,11 +99,12 @@ public class Merger {
 	}
 	
 	public static void mergeFromStream(Merger merger, Configuration config, Path inputUri) throws IOException{
-
+		Logger logger = new Logger(config);
+		
 		if(!merger.isClosed()){
 			
 			// This causes the actual merge operation to happen.
-			Printer.println("Merging " + inputUri + "...");
+			logger.println("Merging " + inputUri + "...");
 		
 			FileSystem fs = FileSystem.get(inputUri.toUri(), config);
 			
@@ -127,13 +128,14 @@ public class Merger {
 					 
 					while (reader.next(key, value)){
 						merger.addSegment(value.getBytes(), 0, value.getLength()-1);
-						Printer.println("Reduce output merged: ts=" + key.get() + ", size=" + FileUtils.humanReadableByteCount(value.getLength(), false));
+						logger.println("Reduce output merged: ts=" + key.get() + ", size=" + FileUtils.humanReadableByteCount(value.getLength(), false));
 					}
 					reader.close();
 				}	
 			}
 			
-			Printer.println("Sucessfully merged " + inputUri + ".");
+			logger.println("Sucessfully merged " + inputUri + ".");
+			logger.flush();
 		}
 		else
 		{
@@ -146,7 +148,7 @@ public class Merger {
 		if (!merger.isClosed()) {
 
 			// This causes the actual merge operation to happen.
-			Printer.println("Merging " + folder.getAbsolutePath() + "...");
+			System.out.println("Merging " + folder.getAbsolutePath() + "...");
 
 			if (folder.isDirectory()) {
 				List<String> files = Arrays.asList(folder.list());
@@ -172,15 +174,15 @@ public class Merger {
 					}
 
 				});
-				Printer.println(files.toString());
+				System.out.println(files.toString());
 				for (String file : files) {
 					File segment = new File(folder.getAbsolutePath() + "/"
 							+ file);
 					if (segment.isFile() && !file.startsWith(".")) {
 						String segPath = folder.getAbsolutePath() + "/" + file;
-						Printer.println(segPath);
+						System.out.println(segPath);
 						merger.addSegment(segPath);
-						Printer.println("Reduce output merged: s="
+						System.out.println("Reduce output merged: s="
 								+ segment.getName()
 								+ ", size="
 								+ FileUtils.humanReadableByteCount(
@@ -188,7 +190,7 @@ public class Merger {
 					}
 				}
 			}
-			Printer.println("Sucessfully merged " + folder.getAbsolutePath()
+			System.out.println("Sucessfully merged " + folder.getAbsolutePath()
 					+ ".");
 		} else {
 			throw new RuntimeException(

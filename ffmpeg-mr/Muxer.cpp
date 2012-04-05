@@ -123,9 +123,9 @@ JNIEXPORT jbyteArray JNICALL Java_com_tstordyallison_ffmpegmr_Remuxer_muxChunks(
         data_chunks_streamid[nb_chunks-1] = (int)env->GetIntField(chunk_id, streamID);
     }
     
-    if(DEBUG)  
+#ifdef DEBUG 
         fprintf(stderr, "Loaded %d chunks for remuxer.\n", nb_chunks);
-    
+#endif
     // ------------------------------------------------------------------------------------------
     
     // This is a really awful bubble sort of the data.
@@ -220,7 +220,7 @@ JNIEXPORT jbyteArray JNICALL Java_com_tstordyallison_ffmpegmr_Remuxer_muxChunks(
     }
     
     // Go through and read from each stream over and over, taking the packets and av_interleaved_write_frame to the correct stream in the output to merge the files again.
-    AVPacket *pkt = NULL;
+    AVPacket *pkt = (AVPacket *)malloc(sizeof(AVPacket));
     int chunk = 0;
     int read_rets[nb_chunks];
     
@@ -231,11 +231,6 @@ JNIEXPORT jbyteArray JNICALL Java_com_tstordyallison_ffmpegmr_Remuxer_muxChunks(
     
     for(;;)
     {
-        // Init the packet.
-        pkt = (AVPacket *)malloc(sizeof(AVPacket));
-        av_init_packet(pkt);
-        
-        
         // Read in some data.
         if(read_rets[chunk] > 0){
             read_rets[chunk] = read_avpacket(image_lists[chunk], image_sizes[chunk], &image_cursors[chunk], pkt);
@@ -261,7 +256,7 @@ JNIEXPORT jbyteArray JNICALL Java_com_tstordyallison_ffmpegmr_Remuxer_muxChunks(
             }
             
             int ret = av_interleaved_write_frame(output_format_context, pkt);
-            av_free_packet(pkt);
+            av_free_packet(pkt); av_init_packet(pkt);
             
             if(DEBUG_PRINT_CRAZY && ret != 0){
                  fprintf(stderr,"Error writing frame (skippped): ret=%d\n", ret);
@@ -286,6 +281,8 @@ JNIEXPORT jbyteArray JNICALL Java_com_tstordyallison_ffmpegmr_Remuxer_muxChunks(
         }
     }
     
+    av_freep(&pkt);
+    
     // Write the output file trailers.
     av_write_trailer(output_format_context);
     
@@ -304,12 +301,19 @@ JNIEXPORT jbyteArray JNICALL Java_com_tstordyallison_ffmpegmr_Remuxer_muxChunks(
   
     // Free up all the state.
     
-    for(int i = 0; i < nb_chunks; i++)
-    {
+    for(int i = 0; i < nb_chunks; i++){
         free(image_lists[i]); image_lists[i] = NULL;
         free(data_chunks[i]); data_chunks[i] = NULL;
     }
+
+    free(data_chunks);
     free(data_chunks_size);
+    free(data_chunks_streamid);
+    
+    free(image_lists);
+    free(image_sizes);
+    free(image_cursors);
+    free(stream_input_tbs);
     
     // Return the new data.
     jbyteArray dataArray = env->NewByteArray(output_data_size);

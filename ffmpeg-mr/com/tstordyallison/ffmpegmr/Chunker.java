@@ -8,12 +8,12 @@ import java.util.concurrent.LinkedBlockingQueue;
 
 import org.apache.hadoop.conf.Configuration;
 
-import com.tstordyallison.ffmpegmr.util.Printer;
+import com.tstordyallison.ffmpegmr.emr.Logger;
 import com.tstordyallison.ffmpegmr.util.ThreadCatcher;
 
 public class Chunker {
 	
-	public static int 	 CHUNK_Q_LIMIT = 5;
+	public static int CHUNK_Q_LIMIT = 4;
 	
 	public static class ChunkerReport {
 		private long packetCount = 0;
@@ -32,24 +32,25 @@ public class Chunker {
 		}
 	}
 	
-	public static ChunkerReport chunkInputFile(Configuration config, File file, String hadoopUri) throws IOException, InterruptedException, URISyntaxException{
+	public static ChunkerReport chunkInputFile(Configuration config, File file, String hadoopUri, int blockSize) throws IOException, InterruptedException, URISyntaxException{
 		// Check file.
 		if(!file.exists())
 			throw new RuntimeException(file + " does not exist.");
 		
-		return chunkInputFile(config, "file://" + file.getAbsolutePath(), hadoopUri);
+		return chunkInputFile(config, "file://" + file.getAbsolutePath(), hadoopUri, blockSize);
 	}
 	
-	public static ChunkerReport chunkInputFile(Configuration config, String inputUri, String hadoopUri) throws IOException, InterruptedException, URISyntaxException{
-		Printer.println("Demuxing " + inputUri + "...");
+	public static ChunkerReport chunkInputFile(Configuration config, String inputUri, String hadoopUri, int blockSize) throws IOException, InterruptedException, URISyntaxException{
+		Logger logger = new Logger(config);
+		logger.println("Demuxing " + inputUri + "...");
 		
 		// Chunk queue for processing
 		BlockingQueue<Chunk> chunkQ = new LinkedBlockingQueue<Chunk>(CHUNK_Q_LIMIT);
 		
 		// Start the chunker 
-		WriterThread writer = new WriterThread(config, chunkQ, hadoopUri, "Hadoop FS Writer Thread"); 
+		WriterThread writer = new WriterThread(config, chunkQ, hadoopUri, "Hadoop FS Writer Thread", blockSize); 
 		writer.setUncaughtExceptionHandler(new ThreadCatcher());
-		ChunkerThread chunker = new ChunkerThread(config, chunkQ, inputUri, writer.getBlockSize(), "FFmpeg JNI Demuxer");
+		ChunkerThread chunker = new ChunkerThread(config, chunkQ, inputUri, blockSize, "FFmpeg JNI Demuxer");
 		chunker.setUncaughtExceptionHandler(new ThreadCatcher());
 		
 		// Start and wait for completion.
@@ -57,8 +58,9 @@ public class Chunker {
 		chunker.join(); writer.join();
 		
 		// Job done!
-		Printer.println("Sucessfully Demuxed " + inputUri + ".");
-	
+		logger.println("Sucessfully Demuxed " + inputUri + ".");
+		logger.flush();
+		
 		ChunkerReport report = new ChunkerReport(chunker.getPacketCount(), chunker.getEndTS());
 		return report;
 	}

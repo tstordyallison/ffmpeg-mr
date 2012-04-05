@@ -8,6 +8,7 @@ import org.apache.hadoop.mapreduce.Reducer;
 
 import com.tstordyallison.ffmpegmr.Chunk;
 import com.tstordyallison.ffmpegmr.Remuxer;
+import com.tstordyallison.ffmpegmr.emr.Logger;
 
 public class RemuxReducer extends Reducer<LongWritable, Chunk, LongWritable, BytesWritable> {
 
@@ -22,6 +23,7 @@ public class RemuxReducer extends Reducer<LongWritable, Chunk, LongWritable, Byt
 	 */
 	@Override
 	protected void reduce(LongWritable timestamp, Iterable<Chunk> chunks, Context context) throws IOException, InterruptedException {
+		Logger.println(context.getConfiguration(), "Reducing ts=" + timestamp);
 		context.write(new LongWritable(timestamp.get()), new BytesWritable(Remuxer.muxChunks(chunks)));
 	}
 

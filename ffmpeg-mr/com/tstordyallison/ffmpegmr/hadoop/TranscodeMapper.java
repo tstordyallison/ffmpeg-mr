@@ -14,8 +14,8 @@ import com.tstordyallison.ffmpegmr.ChunkData;
 import com.tstordyallison.ffmpegmr.ChunkID;
 import com.tstordyallison.ffmpegmr.DemuxPacket;
 import com.tstordyallison.ffmpegmr.Transcoder;
+import com.tstordyallison.ffmpegmr.emr.Logger;
 import com.tstordyallison.ffmpegmr.hadoop.TranscodeJob.ProgressCounter;
-import com.tstordyallison.ffmpegmr.util.Printer;
 import com.tstordyallison.ffmpegmr.util.Stopwatch;
 
 public class TranscodeMapper extends Mapper<ChunkID,ChunkData,LongWritable,Chunk> {
@@ -24,6 +24,9 @@ public class TranscodeMapper extends Mapper<ChunkID,ChunkData,LongWritable,Chunk
 	private float videoCrf = 0;
 	private int videoBitrate = 512000;
 	private int audioBitrate = 64000;
+	private int videoThreads = 0; // Auto.
+	
+	private Logger logger;
 	
 	@Override
 	protected void setup(Context context) throws IOException, InterruptedException {
@@ -34,6 +37,9 @@ public class TranscodeMapper extends Mapper<ChunkID,ChunkData,LongWritable,Chunk
 		videoCrf = config.getFloat("ffmpeg-mr.videoCrf", videoCrf);
 		videoBitrate = config.getInt("ffmpeg-mr.videoBitrate", videoBitrate);
 		audioBitrate = config.getInt("ffmpeg-mr.audioBitrate", audioBitrate);
+		videoThreads = config.getInt("ffmpeg-mr.videoThreads", videoThreads);
+		
+		logger = new Logger(context.getConfiguration());
 	}
 
 	/**
@@ -48,17 +54,16 @@ public class TranscodeMapper extends Mapper<ChunkID,ChunkData,LongWritable,Chunk
 	@Override
 	protected void map(ChunkID key, ChunkData value, Context context) throws IOException, InterruptedException {
 		
-		Printer.println("Running mapper for "  + new Chunk(key, value).toString());
+		log(context, "Running mapper for "  + new Chunk(key, value).toString());
 		Stopwatch stopwatch = new Stopwatch();
 		stopwatch.start(); 
 		
     	Transcoder trans = new  Transcoder(key.getTbNum(), key.getTbDen(), key.getOutputChunkPoints(), value.getData(), 
-    									   videoResScale, videoCrf, videoBitrate, audioBitrate);
+    									   videoResScale, videoCrf, videoBitrate, audioBitrate, videoThreads);
     	byte[] header = trans.getStreamData();
     	List<DemuxPacket> currentPackets = new LinkedList<DemuxPacket>();
     	
-    	context.setStatus(String.format("Chunk %d.%d: transcode operation starting... (pkts=%d)", key.getStreamID(), key.getChunkNumber(), value.getPacketCount()));
-		context.progress();
+    	log(context, String.format("Chunk %d.%08d:   0%%. (pkts=%d)", key.getStreamID(), key.getChunkNumber(), value.getPacketCount()));
     	
 		// This is another awful hack:
 		// So that we set all the correct chunk point numbers on output (even if the TS is different)
@@ -71,14 +76,19 @@ public class TranscodeMapper extends Mapper<ChunkID,ChunkData,LongWritable,Chunk
     	// Pull the data through to us whilst building output chunks.
     	DemuxPacket pkt = null;
     	int pkt_counter = 0;
+    	int percentage = 0;
+    	
     	while((pkt = trans.getNextPacket()) != null)
     	{
     		pkt_counter += 1;
-    		if(pkt_counter % 500 == 0)
-    		{
-    			context.setStatus(String.format("Chunk %d.%d: %3.1f%% transcoding complete...", key.getStreamID(), key.getChunkNumber(), ((double)pkt_counter / value.getPacketCount()) * 100));
-    			context.progress();
-    		}
+    		
+    		int newPercentage = (int)(((double)pkt_counter / value.getPacketCount()) * 100);
+			if(percentage != newPercentage)
+			{
+				percentage = newPercentage;
+			    if(percentage % 25 == 0)
+			    	log(context, String.format("Chunk %d.%08d: %3d%%.", key.getStreamID(), key.getChunkNumber(), percentage));
+			}
     		if(pkt_counter % 100 == 0)
     			context.getCounter(ProgressCounter.COMBINED_PROGRESS).increment(100);
     		
@@ -100,14 +110,24 @@ public class TranscodeMapper extends Mapper<ChunkID,ChunkData,LongWritable,Chunk
     	trans.close();
     	stopwatch.stop();
     	
-    	context.setStatus(String.format("Chunk %d.%d: Transcoding complete (time taken: %d ms.)", key.getStreamID(), key.getChunkNumber(),  stopwatch.getElapsedTime()));
-		context.progress();
+    	log(context, String.format("Chunk %d.%08d: Transcoding complete (time taken: %d ms.)", key.getStreamID(), key.getChunkNumber(),  stopwatch.getElapsedTime()));
  
 		if(expectedChunks.size() > 0)
-			Printer.println("WARNING: Mapper did not output the expected number of chunks. This will likely lead to an mux/merge error.");
-		
-    	Printer.println("Mapper complete, time taken: " + stopwatch.getElapsedTime() + " ms. ");
+			log(context, "WARNING: Mapper did not output the expected number of chunks. This will likely lead to a mux/merge error.");
     }
+	
+	@Override
+	protected void cleanup(Context context) throws IOException, InterruptedException {
+		super.cleanup(context);
+		logger.flush();
+	}
+
+	private void log(Context context, String message)
+	{
+		context.setStatus(message);
+		context.progress();
+		logger.println(message);
+	}
 	
 	private void emptyPacketBuffer(byte[] header, ChunkID key, Queue<Long> expectedChunks, List<DemuxPacket> currentPackets, Context context)
 	{
@@ -131,7 +151,7 @@ public class TranscodeMapper extends Mapper<ChunkID,ChunkData,LongWritable,Chunk
 			chunkID.setStreamDuration(key.getStreamDuration());
 			
 			if(chunkID.getMillisecondsStartTs() != chunkID.getChunkNumber())
-				Printer.println("WARNING: Output startTS != desired chunk point (to the nearest ms).");
+				log(context, "WARNING: Output startTS != desired chunk point (to the nearest ms).");
 			
 			// Build value
 			ChunkData chunkData = new ChunkData(header, currentPackets);
@@ -140,7 +160,7 @@ public class TranscodeMapper extends Mapper<ChunkID,ChunkData,LongWritable,Chunk
 			try {
 				Chunk chunk = new Chunk(chunkID, chunkData);
 				context.write(new LongWritable(chunkID.getChunkNumber()), chunk);
-				Printer.println("Map output: " + chunk.toString());
+				log(context, "Map output: " + chunk.toString());
 			} catch (IOException e) {
 				System.err.println("IO Error writing to map output.");
 				e.printStackTrace();

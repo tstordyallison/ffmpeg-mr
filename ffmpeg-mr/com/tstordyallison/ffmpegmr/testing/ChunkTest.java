@@ -38,11 +38,11 @@ public class ChunkTest {
 		{
 			
 			processFolder(new File("/Users/tom/Code/fyp/example-videos/TestCandidates/"));
-			
+			processFolder(new File("/Users/tom/Code/fyp/example-videos/TestCandidates/"));
 	
 			//chunkWithTimer(TranscodeJob.getConfig(), "file:///Users/tom/Code/fyp/example-videos/TestLarge.m4v", "file:///Users/tom/Code/fyp/example-videos/TestLarge.m4v.seq");
 			//chunkWithTimer("file:///Users/tom/Code/fyp/example-videos/TestLarge.m4v", "file:///Users/tom/Code/fyp/example-videos/TestLarge.m4v.seq");
-			//chunkWithTimer("file:///Users/tom/Code/fyp/example-videos/Test.mp4", "file:///Users/tom/Code/fyp/example-videos/Test.mp4.seq");
+			//chunkWithTimer("file:///Users/tom/Code/fyp/example-videos/TestCandidates/Test5.m4v", "file:///Users/tom/Code/fyp/example-videos/TestCandidates/Test5.m4v.seq");
 			//chunkWithTimer("file:///Users/tom/Code/fyp/example-videos/Test.m4v", "file:///Users/tom/Code/fyp/example-videos/Test.m4v.seq");
 			//chunkWithTimer("file:///Users/tom/Code/fyp/example-videos/TestMultiStream.m4v", "file:///Users/tom/Code/fyp/example-videos/TestMultiStream.m4v.seq");
 			//chunkWithTimer("file:///Users/tom/Code/fyp/example-videos/Test.mkv", "file:///Users/tom/Code/fyp/example-videos/Test.mkv.seq");
@@ -62,7 +62,6 @@ public class ChunkTest {
 			}
 	}
 	
-	
 	public static long chunkWithTimer(String inputUri, String hadoopUri) throws IOException, InterruptedException, URISyntaxException
 	{
 		return chunkWithTimer(new Configuration(), inputUri, hadoopUri);
@@ -73,7 +72,7 @@ public class ChunkTest {
 		
 		Stopwatch stopwatch = new Stopwatch();
 		stopwatch.start();
-			Chunker.chunkInputFile(config, inputUri, hadoopUri);
+			Chunker.chunkInputFile(config, inputUri, hadoopUri, WriterThread.BLOCK_SIZE*2);
 		stopwatch.stop();
 		
 		System.out.print("Time taken for " + FileUtils.humanReadableByteCount(len, false) + ": " + stopwatch.getElapsedTime() + " ms. ");
