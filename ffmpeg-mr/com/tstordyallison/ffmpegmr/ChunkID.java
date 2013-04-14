@@ -13,18 +13,21 @@ import org.apache.hadoop.io.Writable;
 import org.joda.time.Period;
 import org.joda.time.format.PeriodFormat;
 
+import com.tstordyallison.ffmpegmr.Demuxer.AVMediaType;
+
 public class ChunkID implements Writable, Comparable<ChunkID> {
 	
 	private long streamDuration = Long.MAX_VALUE;
 	private long chunkNumber = -1;
-	private int streamID = -1; // THIS IS READ BY NATIVE CODE IN THE REMUXER - CAREFUL!
+	private int streamID = -1; // FIXME: THIS IS READ BY NATIVE CODE IN THE REMUXER - CAREFUL!
 	private long startTS = 0; 	
 	private long endTS = -1; 
 	private long tbNum = 0;
 	private long tbDen = 1;
 	private List<Long> outputChunkPoints = new ArrayList<Long>(); // Stores the extra points at which this chunk will split on encode
+	private Demuxer.AVMediaType streamType = AVMediaType.UNKNOWN;
 	
-	public boolean written = false;
+	private boolean written = false; 
 	
 	@Override
 	public void write(DataOutput out) throws IOException {
@@ -35,6 +38,7 @@ public class ChunkID implements Writable, Comparable<ChunkID> {
 		out.writeLong(tbNum);
 		out.writeLong(tbDen);
 		out.writeLong(streamDuration);
+		out.writeInt(streamType.ordinal());
 		StringBuilder sb = new StringBuilder();
 		for(Long point : outputChunkPoints){
 			sb.append(point);
@@ -53,6 +57,7 @@ public class ChunkID implements Writable, Comparable<ChunkID> {
 		tbNum = in.readLong();
 		tbDen = in.readLong();
 		streamDuration = in.readLong();
+		streamType = Demuxer.AVMediaType.values()[in.readInt()];
 		outputChunkPoints =  new ArrayList<Long>();
 		String input = in.readUTF();
 		if(!input.isEmpty())
@@ -122,7 +127,13 @@ public class ChunkID implements Writable, Comparable<ChunkID> {
 		writtenCheck();
 		this.streamDuration = streamDuration;
 	}
-	
+	public Demuxer.AVMediaType getStreamType() {
+		return streamType;
+	}
+	public void setStreamType(Demuxer.AVMediaType streamType) {
+		writtenCheck();
+		this.streamType = streamType;
+	}
 	public boolean isModifiable()
 	{
 		return !written;

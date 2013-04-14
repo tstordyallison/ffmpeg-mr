@@ -1,0 +1,50 @@
+{
+    "name": "Performance Test",
+    "description": "Each of the test files on 1 - 19  (8 core) machines. All with the same output quality.",
+    "instanceIncrement": 1,
+    "endInstanceCount": 6,
+    "jobSubmissionUri": "s3n://ffmpeg-mr/job-submissions/Bench-PerformanceTest-j-3U5A01PG3QEIV.json",
+    "resultsUri": "s3n://ffmpeg-mr/results/PerformanceTest-20120410-202743.csv",
+    "resultsURL": "http://ffmpeg-mr.s3.amazonaws.com/results/PerformanceTest-20120410-202743.csv",
+    "settings": {
+        "flowName": "ffmpeg-mr: Main Performance Tests (Test8\u003d5,6)",
+        "jobFlowID": "j-3U5A01PG3QEIV",
+        "instanceCount": 5,
+        "instanceType": "c1.xlarge",
+        "bidPrice": "0.40",
+        "numberOfMapTasksPerMachine": 4,
+        "numberOfReduceTasksPerMachine": 4,
+        "numberOfVideoThreads": 4,
+        "instanceMarketType": "SPOT",
+        "reuseJVMTaskCount": 1,
+        "speculativeExecution": false,
+        "masterInstanceType": "m1.large",
+        "masterBidPrice": "0.30",
+        "masterMarketType": "SPOT",
+        "createNewCluster": true,
+        "debugging": false,
+        "keepClusterAlive": false,
+        "performNativeBuild": false,
+        "uploadJar": false,
+        "skipFailedJobs": true
+    },
+    "jobSubmission": {
+        "jobs": [
+            {
+                "jobName": "8. XLarge HD M4V Test",
+                "inputUri": "s3n://ffmpeg-mr/testcandidates/Test8.m4v",
+                "inputType": "RawFileCopy",
+                "processingType": "MapReduce",
+                "outputUri": "s3n://ffmpeg-mr/output/Test8.m4v.mkv",
+                "outputType": "RawFile",
+                "videoResScale": 1.0,
+                "videoCrf": 21.0,
+                "videoBitrate": 0,
+                "audioBitrate": 320000,
+                "videoThreads": 0,
+                "overwrite": true,
+                "demuxChunkSize": 25165824
+            }
+        ]
+    }
+}

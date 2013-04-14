@@ -2,6 +2,8 @@ package com.tstordyallison.ffmpegmr.emr;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
@@ -39,18 +41,28 @@ public class TranscodeJobDefList {
 	
 	public static TranscodeJobDefList fromJSON(Configuration conf, String uri) throws IOException, URISyntaxException
 	{
-		FileSystem fs;
-		if(uri.startsWith("file://"))
-			fs = new RawLocalFileSystem();
-		else
-			fs = FileSystem.get(new URI(uri), conf);
-		Path path = new Path(uri);
-		FSDataInputStream fis = fs.open(path);
-        BufferedReader input = new BufferedReader(new InputStreamReader(fis));
+		BufferedReader input;
+        FSDataInputStream fis = null;
+        FileSystem fs = null;
+        
+        if(uri.contains("file://"))
+        	input = new BufferedReader(new FileReader(new File(uri.substring(7))));
+        else if(!uri.contains("://"))
+        	input = new BufferedReader(new FileReader(new File(uri)));
+        else{
+        	fs = FileSystem.get(new URI(uri), conf);
+    		Path path = new Path(uri);
+    		fis = fs.open(path);
+    		input = new BufferedReader(new InputStreamReader(fis));
+        }
+        
         TranscodeJobDefList list = gson.fromJson(input, TranscodeJobDefList.class);
         input.close();
-        fis.close();
-        fs.close();
+        
+        if(!uri.contains("file://") && uri.contains("://")){
+	        fis.close();
+	        fs.close();
+        }
         return list;
 	}
 	

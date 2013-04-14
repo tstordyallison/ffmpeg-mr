@@ -3,6 +3,8 @@ package com.tstordyallison.ffmpegmr.emr;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.File;
+import java.io.FileReader;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
@@ -14,7 +16,6 @@ import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.fs.RawLocalFileSystem;
 import org.joda.time.DateTime;
 
 import com.amazonaws.services.ec2.model.InstanceType;
@@ -61,16 +62,30 @@ public class Benchmark {
 	}
 
 	public static Benchmark loadDefinition(Configuration conf, String uri) throws IOException, URISyntaxException{
-		FileSystem fs = FileSystem.get(new URI(uri), conf);
-		Path path = new Path(uri);
-		FSDataInputStream fis = fs.open(path);
-        BufferedReader input = new BufferedReader(new InputStreamReader(fis));
+        BufferedReader input;
+        FSDataInputStream fis = null;
+        FileSystem fs = null;
+        
+        if(uri.contains("file://"))
+        	input = new BufferedReader(new FileReader(new File(uri.substring(7))));
+        else if(!uri.contains("://"))
+        	input = new BufferedReader(new FileReader(new File(uri)));
+        else{
+        	fs = FileSystem.get(new URI(uri), conf);
+    		Path path = new Path(uri);
+    		fis = fs.open(path);
+    		input = new BufferedReader(new InputStreamReader(fis));
+        }
+        
         Benchmark bench = gson.fromJson(input, Benchmark.class);
         bench.conf = conf;
         bench.fileLocation = uri;
         input.close();
-        fis.close();
-        fs.close();
+        
+        if(!uri.contains("file://") && uri.contains("://")){
+	        fis.close();
+	        fs.close();
+        }
         return bench;
 	}
 	
@@ -82,32 +97,31 @@ public class Benchmark {
 		JobController jc = new JobController(getSettings());
 		
 		if(jobSubmission != null){
-			jobSubmissionUri = "s3n://" + JobController.BUCKET_NAME + "/job-submissions/Bench-" + name.replace(" ", "") + ".json";
+			jobSubmissionUri = "s3n://" + JobController.BUCKET_NAME + "/job-submissions/Bench-" + name.replace(" ", "") + "-" + jc.getJobFlowID() +".json";
 			try {
 				jobSubmission.toJSON(TranscodeJob.getConfig(), jobSubmissionUri);
 			} catch (IOException e) {
 			} catch (URISyntaxException e) {
 			}
-		}
-		
-		String jobSubmissionUri = this.jobSubmissionUri;
-		if(!jobSubmissionUri.contains("://"))
-			jobSubmissionUri = "s3n://" + JobController.BUCKET_NAME + "/job-submissions/" + jobSubmissionUri; 
 			
-		jc.addJobSubmission(jobSubmissionUri);
-		for(int i = jc.getInstanceCount()+instanceIncrement; i <= endInstanceCount; i+=instanceIncrement){
-			jc.addResizeStep(i);
+			String jobSubmissionUri = this.jobSubmissionUri;
+			if(!jobSubmissionUri.contains("://"))
+				jobSubmissionUri = "s3n://" + JobController.BUCKET_NAME + "/job-submissions/" + jobSubmissionUri; 
+				
 			jc.addJobSubmission(jobSubmissionUri);
-		}
-	
-		if(resultsUri == null){
-			String date = new DateTime().toString("yyyyMMdd-HHmmss");
-			resultsUri = "s3n://" + JobController.BUCKET_NAME + "/results/" + name.replace(" ", "") + "-" + date + ".csv";
-			resultsURL = "http://" + JobController.BUCKET_NAME + ".s3.amazonaws.com/results/" + name.replace(" ", "") + "-" + date + ".csv";
+			if(instanceIncrement > 0)
+				for(int i = jc.getInstanceCount()+instanceIncrement; i <= endInstanceCount; i+=instanceIncrement){
+					jc.addResizeStep(i);
+					jc.addJobSubmission(jobSubmissionUri);
+				}
+		
+			if(resultsUri == null){
+				String date = new DateTime().toString("yyyyMMdd-HHmmss");
+				resultsUri = "s3n://" + JobController.BUCKET_NAME + "/results/" + name.replace(" ", "") + "-" + date + ".csv";
+				resultsURL = "http://" + JobController.BUCKET_NAME + ".s3.amazonaws.com/results/" + name.replace(" ", "") + "-" + date + ".csv";
+			}
 		}
 		
-		jc.addRecordTimingsStep(resultsUri);
-	
 		return jc;
 	}
 	
@@ -117,20 +131,29 @@ public class Benchmark {
 	}
 	
 	public void save(Configuration conf, String uri) throws IOException, URISyntaxException{
-		FileSystem fs;
-		if(uri.startsWith("file://"))
-			fs = new RawLocalFileSystem();
-		else
-			fs = FileSystem.get(new URI(uri), conf);
-		Path path = new Path(uri);
-		FSDataOutputStream fos = fs.create(path);
-        BufferedWriter output = new BufferedWriter(new OutputStreamWriter(fos));
+		BufferedWriter output;
+		FileSystem fs = null;
+        FSDataOutputStream fos = null;
+        
+        if(uri.contains("file://"))
+        	output = new BufferedWriter(new FileWriter(new File(uri.substring(7))));
+        else if(!uri.contains("://"))
+        	output = new BufferedWriter(new FileWriter(new File(uri)));
+        else{
+        	fs = FileSystem.get(new URI(uri), conf);
+        	Path path = new Path(uri);
+    		fos = fs.create(path);
+    		output = new BufferedWriter(new OutputStreamWriter(fos));
+        }
+		
 		JsonWriter writer = new JsonWriter(output);
-		writer.setIndent("  ");
+		writer.setIndent("    ");
         gson.toJson(this, Benchmark.class, writer);
         output.close();
-        fos.close();
-        fs.close();
+        if(!uri.contains("file://") && uri.contains("://")){
+	        fos.close();
+	        fs.close();
+        }
 	}
 
 	public String getFileLocation() {
@@ -240,7 +263,6 @@ public class Benchmark {
 			System.out.println("Processing benchmark: " + bench.getName());
 			bench.processRequest();
 			System.out.println("Benchmark submitted.");
-			System.out.println("Output data URL: " + bench.getResultsURL());
 			bench.save();
 		}
 		else

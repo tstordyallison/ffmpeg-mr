@@ -1,0 +1,65 @@
+{
+    "name": "Test 3 Rerun",
+    "description": "",
+    "instanceIncrement": 0,
+    "endInstanceCount": 2,
+    "jobSubmissionUri": "s3n://ffmpeg-mr/job-submissions/Bench-Test3Rerun-j-1K96YDBFDYDGM.json",
+    "resultsUri": "s3n://ffmpeg-mr/results/Test3Rerun-20120420-174130.csv",
+    "resultsURL": "http://ffmpeg-mr.s3.amazonaws.com/results/Test3Rerun-20120420-174130.csv",
+    "settings": {
+        "flowName": "ffmpeg-mr: Test 3 Rerun",
+        "jobFlowID": "j-1K96YDBFDYDGM",
+        "instanceCount": 0,
+        "instanceType": "c1.xlarge",
+        "bidPrice": "0.50",
+        "numberOfMapTasksPerMachine": 4,
+        "numberOfReduceTasksPerMachine": 4,
+        "numberOfVideoThreads": 4,
+        "instanceMarketType": "SPOT",
+        "reuseJVMTaskCount": 1,
+        "speculativeExecution": false,
+        "masterInstanceType": "c1.xlarge",
+        "masterBidPrice": "0.50",
+        "masterMarketType": "SPOT",
+        "createNewCluster": true,
+        "debugging": false,
+        "keepClusterAlive": false,
+        "performNativeBuild": false,
+        "uploadJar": false,
+        "skipFailedJobs": true
+    },
+    "jobSubmission": {
+        "jobs": [
+            {
+                "jobName": "3. Small MP4 Test - AB",
+                "inputUri": "s3n://ffmpeg-mr/testcandidates/Test3.mp4",
+                "inputType": "RawFileCopy",
+                "processingType": "MapReduce",
+                "outputUri": "s3n://ffmpeg-mr/output/Test3-TB-MR.mp4.mkv",
+                "outputType": "RawFile",
+                "videoResScale": 1.0,
+                "videoCrf": 0.0,
+                "videoBitrate": 400000,
+                "audioBitrate": 128000,
+                "videoThreads": -1,
+                "overwrite": true,
+                "demuxChunkSize": 8388608
+            },
+            {
+                "jobName": "3. Small MP4 Test - CRF",
+                "inputUri": "s3n://ffmpeg-mr/testcandidates/Test3.mp4",
+                "inputType": "RawFileCopy",
+                "processingType": "MapReduce",
+                "outputUri": "s3n://ffmpeg-mr/output/Test3-CRF-MR.mp4.mkv",
+                "outputType": "RawFile",
+                "videoResScale": 1.0,
+                "videoCrf": 21.0,
+                "videoBitrate": 0,
+                "audioBitrate": 128000,
+                "videoThreads": -1,
+                "overwrite": true,
+                "demuxChunkSize": 8388608
+            }
+        ]
+    }
+}

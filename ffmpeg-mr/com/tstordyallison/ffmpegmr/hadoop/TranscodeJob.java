@@ -12,9 +12,12 @@ import org.apache.hadoop.filecache.DistributedCache;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.FileUtil;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.io.BytesWritable;
 import org.apache.hadoop.io.LongWritable;
+import org.apache.hadoop.mapred.ClusterStatus;
+import org.apache.hadoop.mapred.JobClient;
+import org.apache.hadoop.mapred.JobConf;
+import org.apache.hadoop.mapreduce.ClusterMetrics;
 import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.lib.input.SequenceFileInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.SequenceFileOutputFormat;
@@ -28,9 +31,11 @@ import com.tstordyallison.ffmpegmr.WriterThread;
 
 import com.tstordyallison.ffmpegmr.emr.JobflowConfiguration;
 import com.tstordyallison.ffmpegmr.emr.Logger;
+import com.tstordyallison.ffmpegmr.emr.TimeEntry;
 import com.tstordyallison.ffmpegmr.emr.TranscodeJobDef;
 import com.tstordyallison.ffmpegmr.emr.Logger.TimedEvent;
 import com.tstordyallison.ffmpegmr.emr.TranscodeJobDef.OutputType;
+import com.tstordyallison.ffmpegmr.emr.TranscodeJobDef.ProcessingType;
 import com.tstordyallison.ffmpegmr.emr.TranscodeJobDefList;
 import com.tstordyallison.ffmpegmr.emr.TranscodeJobDef.InputType;
 import com.tstordyallison.ffmpegmr.util.FileUtils;
@@ -38,7 +43,7 @@ import com.tstordyallison.ffmpegmr.util.OSValidator;
 
 public class TranscodeJob extends Configured implements Tool {
 
-	public static enum ProgressCounter { AUDIO_PROGRESS, VIDEO_PROGRESS, COMBINED_PROGRESS} 
+	public static enum ProgressCounter { AUDIO_PROGRESS, VIDEO_PROGRESS, COMBINED_PROGRESS, INPUT_PACKETS_PROCESSED} 
 	private static URI[] nativeLibs = null;
 	private static URI[] nativeLibs64 = null;
 	
@@ -54,21 +59,31 @@ public class TranscodeJob extends Configured implements Tool {
 				new URI("s3n://ffmpeg-mr/lib/libffmpeg-mr.so#libffmpeg-mr.so"),
 			    new URI("s3n://ffmpeg-mr/lib/libavcodec.so#libavcodec.so.54"),
 			    new URI("s3n://ffmpeg-mr/lib/libavformat.so#libavformat.so.54"),
+			    new URI("s3n://ffmpeg-mr/lib/libavdevice.so#libavdevice.so.53"),
+			    new URI("s3n://ffmpeg-mr/lib/libavfilter.so#libavfilter.so.2"),
 			    new URI("s3n://ffmpeg-mr/lib/libavutil.so#libavutil.so.51"),
 			    new URI("s3n://ffmpeg-mr/lib/libswscale.so#libswscale.so.2"),
 			    new URI("s3n://ffmpeg-mr/lib/libfaac.so#libfaac.so.0"),
 			    new URI("s3n://ffmpeg-mr/lib/libx264.so#libx264.so.120"),
-			    new URI("s3n://ffmpeg-mr/lib/libmp3lame.so#libmp3lame.so.0")
+			    new URI("s3n://ffmpeg-mr/lib/libmp3lame.so#libmp3lame.so.0"),
+			    new URI("s3n://ffmpeg-mr/lib/libswresample.so#libswresample.so.0"),
+			    new URI("s3n://ffmpeg-mr/lib/libpostproc.so#libpostproc.so.52"),
+			    new URI("s3n://ffmpeg-mr/lib/ffmpeg#ffmpeg")
 			};
 			nativeLibs64 = new URI[] {
-					new URI("s3n://ffmpeg-mr/lib64/libffmpeg-mr.so#libffmpeg-mr.so"),
-				    new URI("s3n://ffmpeg-mr/lib64/libavcodec.so#libavcodec.so.54"),
-				    new URI("s3n://ffmpeg-mr/lib64/libavformat.so#libavformat.so.54"),
-				    new URI("s3n://ffmpeg-mr/lib64/libavutil.so#libavutil.so.51"),
-				    new URI("s3n://ffmpeg-mr/lib64/libswscale.so#libswscale.so.2"),
-				    new URI("s3n://ffmpeg-mr/lib64/libfaac.so#libfaac.so.0"),
-				    new URI("s3n://ffmpeg-mr/lib64/libx264.so#libx264.so.120"),
-				    new URI("s3n://ffmpeg-mr/lib64/libmp3lame.so#libmp3lame.so.0")
+				new URI("s3n://ffmpeg-mr/lib64/libffmpeg-mr.so#libffmpeg-mr.so"),
+			    new URI("s3n://ffmpeg-mr/lib64/libavcodec.so#libavcodec.so.54"),
+			    new URI("s3n://ffmpeg-mr/lib64/libavformat.so#libavformat.so.54"),
+			    new URI("s3n://ffmpeg-mr/lib64/libavfilter.so#libavfilter.so.2"),
+			    new URI("s3n://ffmpeg-mr/lib64/libavdevice.so#libavdevice.so.53"),
+			    new URI("s3n://ffmpeg-mr/lib64/libavutil.so#libavutil.so.51"),
+			    new URI("s3n://ffmpeg-mr/lib64/libswscale.so#libswscale.so.2"),
+			    new URI("s3n://ffmpeg-mr/lib64/libfaac.so#libfaac.so.0"),
+			    new URI("s3n://ffmpeg-mr/lib64/libx264.so#libx264.so.120"),
+			    new URI("s3n://ffmpeg-mr/lib64/libmp3lame.so#libmp3lame.so.0"),
+			    new URI("s3n://ffmpeg-mr/lib64/libswresample.so#libswresample.so.0"),
+			    new URI("s3n://ffmpeg-mr/lib64/libpostproc.so#libpostproc.so.52"),
+			    new URI("s3n://ffmpeg-mr/lib64/ffmpeg#ffmpeg")
 				};
 		} catch (URISyntaxException e) {
 		}
@@ -102,9 +117,14 @@ public class TranscodeJob extends Configured implements Tool {
 		Logger logger = new Logger(config);
 		logger.markStartTime(TimedEvent.JOBRUN);
 		
-		// Get this cluster config information.
+		// Get cluster status from Hadoop.
+		@SuppressWarnings("deprecation")
+		JobClient jobClient = new JobClient(new JobConf(config));
+		ClusterStatus status = jobClient.getClusterStatus();
+		
+		// Get this cluster config information from EMR.
 		JobflowConfiguration jobFlowConfig = new JobflowConfiguration();
-		logger.logClusterDetails(jobFlowConfig.getJobflow(), null);
+		logger.logClusterDetails(jobFlowConfig.getJobflow(), status);
 		
 		try{
 			// Copy native binaries to the distributed cache if we are not testing.
@@ -128,6 +148,7 @@ public class TranscodeJob extends Configured implements Tool {
 			for(TranscodeJobDef jobDef : list.getJobs())
 			{
 				try{
+					long[] packetCount = null;
 					// -----------------
 					// Set job params.
 					// -----------------
@@ -137,133 +158,199 @@ public class TranscodeJob extends Configured implements Tool {
 					config.setFloat("ffmpeg-mr.videoCrf", jobDef.getVideoCrf());
 					config.setInt("ffmpeg-mr.videoBitrate", jobDef.getVideoBitrate());
 					config.setInt("ffmpeg-mr.audioBitrate", jobDef.getAudioBitrate());
-					if(jobDef.getVideoThreads() > 0)
+					if(jobDef.getVideoThreads() >= 0)
 						config.setInt("ffmpeg-mr.videoThreads", jobDef.getVideoThreads());
 					logger.markStartTime(TimedEvent.JOB);
-					logger.logClusterDetails(jobFlowConfig.getJobflow(), jobDef);
-					
+
 					// --------------------------------------
 					// Log this job starting and print its params.
 					// --------------------------------------
 					logger.println("Starting job " + counter + ".");
 					logger.println(jobDef.toString());
 					
-					// -----------------------------------------------
-					// Demux the file into the local HDFS if needed.
-					// -----------------------------------------------
-					Path demuxData = null;
-					Path movieFile = new Path(jobDef.getInputUri());
-					Path outputData = new Path("/tmp/output-temp-" + jobID + "-" + counter);
-					
-					if(jobDef.getInputType() == InputType.RawFileS3){
-						logger.println("Job requires demux. Demuxing direct from S3 and copying into HDFS.");
+					if(jobDef.getProcessingType() == ProcessingType.MapReduce){
+						// -----------------------------------------------
+						// Demux the file into the local HDFS if needed.
+						// -----------------------------------------------
+						Path demuxData = null;
+						Path movieFile = new Path(jobDef.getInputUri());
+						Path outputData = new Path("/tmp/output-temp-" + jobID + "-" + counter);
 						
-						demuxData = new Path("/tmp/demux-temp-" + jobID + "-" + counter); 
-						
-						if(FileSystem.get(movieFile.toUri(), config).getFileStatus(movieFile).getLen() > FileUtils.GIBIBYTE*2){
-							logger.println("WARNING: This file is over 2GB and will likely take a very long time to Demux via S3.");
-							logger.println("WARNING: Please upload this file as a pre-demuxed SequenceFile to improve performance, or copy locally.");
+						if(jobDef.getInputType() == InputType.RawFile){
+							logger.println("Job requires demux. Demuxing direct from S3 and copying into HDFS.");
+							
+							demuxData = new Path("/tmp/demux-temp-" + jobID + "-" + counter); 
+							
+							if(FileSystem.get(movieFile.toUri(), config).getFileStatus(movieFile).getLen() > FileUtils.GIBIBYTE*2){
+								logger.println("WARNING: This file is over 2GB and will likely take a very long time to Demux via S3.");
+								logger.println("WARNING: Please upload this file as a pre-demuxed SequenceFile to improve performance, or copy locally.");
+							}
+							
+							logger.markStartTime(TimedEvent.DEMUX);
+								packetCount = Chunker.chunkInputFile(config, movieFile.toUri().toString(), demuxData.toUri().toString(), jobDef.getDemuxChunkSize()).getPacketCounts();
+							logger.markEndTime(TimedEvent.DEMUX);
 						}
+						if(jobDef.getInputType() == InputType.RawFileCopy){
+							logger.println("Job requires demux. Copying locallly, then demuxing and copying into HDFS.");
+							
+							// Copy the data locally.
+							File tempFile = File.createTempFile("temp-demux", ".movie");
+							tempFile.deleteOnExit();
+							
+							logger.markStartTime(TimedEvent.RAW_COPY_IN);
+								FileUtils.copy(movieFile, new Path("file://" + tempFile.getAbsolutePath()), false, true, config);
+							logger.markEndTime(TimedEvent.RAW_COPY_IN);
+							
+							// Demux onto HDFS.
+							demuxData = new Path("/tmp/demux-temp-" + jobID); 
+							
+							logger.markStartTime(TimedEvent.DEMUX);
+								packetCount = Chunker.chunkInputFile(config, tempFile, demuxData.toUri().toString(), jobDef.getDemuxChunkSize()).getPacketCounts();
+							logger.markEndTime(TimedEvent.DEMUX);
+							
+							tempFile.delete();
+						}
+						if(jobDef.getInputType() == InputType.Demuxed){
+							logger.println("Using a pre-demuxed SequenceFile.");
+							demuxData = movieFile;
+						}	
 						
-						logger.markStartTime(TimedEvent.DEMUX);
-							Chunker.chunkInputFile(config, movieFile.toUri().toString(), demuxData.toUri().toString(), jobDef.getDemuxChunkSize());
-						logger.markEndTime(TimedEvent.DEMUX);
-					}
-					if(jobDef.getInputType() == InputType.RawFileCopy){
-						logger.println("Job requires demux. Copying locallly, then demuxing and copying into HDFS.");
+						logger.logClusterDetails(jobFlowConfig.getJobflow(), status, jobDef, packetCount);
 						
-						// Copy the data locally.
-						File tempFile = File.createTempFile("temp-demux", ".movie");
-						tempFile.deleteOnExit();
-						
-						logger.markStartTime(TimedEvent.RAW_COPY_IN);
-							FileUtils.copy(movieFile, new Path("file://" + tempFile.getAbsolutePath()), false, true, config);
-						logger.markEndTime(TimedEvent.RAW_COPY_IN);
-						
-						// Demux onto HDFS.
-						demuxData = new Path("/tmp/demux-temp-" + jobID); 
-						
-						logger.markStartTime(TimedEvent.DEMUX);
-							Chunker.chunkInputFile(config, tempFile, demuxData.toUri().toString(), jobDef.getDemuxChunkSize());
-						logger.markEndTime(TimedEvent.DEMUX);
-						
-						tempFile.delete();
-					}
-					if(jobDef.getInputType() == InputType.Demuxed){
-						logger.println("Using a pre-demuxed SequenceFile.");
-						demuxData = movieFile;
-					}	
-					
-					// ------------------------
-					// Delete the output if it exists.
-					// ------------------------
-					if(jobDef.isOverwrite()){
-						FileSystem fs = FileSystem.get(new URI(jobDef.getOutputUri()), config);
-						if(fs.exists(new Path(jobDef.getOutputUri())))
-							fs.delete(new Path(jobDef.getOutputUri()), true);
-					}
-					// ------------------------
-					// Run the transcode job.
-					// ------------------------
-					Job job = new Job(config);
-					job.setJobName("FFmpeg-MR Job: " + jobDef.getJobName());
-					
-					job.setInputFormatClass(SequenceFileInputFormat.class);
-					job.setMapperClass(TranscodeMapper.class);
-					
-				    job.setMapOutputKeyClass(LongWritable.class);
-				    job.setMapOutputValueClass(Chunk.class);
-				   
-				    job.setPartitionerClass(TranscodePartitioner.class);
-					job.setReducerClass(RemuxReducer.class);
-					
-				    job.setOutputFormatClass(SequenceFileOutputFormat.class);
-				    job.setOutputKeyClass(LongWritable.class);
-				    job.setOutputValueClass(BytesWritable.class);
-				    
-			        SequenceFileInputFormat.addInputPath(job, demuxData);
-			        if(jobDef.getOutputType() == OutputType.RawFile)
-			        	SequenceFileOutputFormat.setOutputPath(job, outputData);
-			        else if(jobDef.getOutputType() == OutputType.ReducerSegments)
-			        	SequenceFileOutputFormat.setOutputPath(job, new Path(jobDef.getOutputUri()));
-			        
-			        job.setJarByClass(TranscodeJob.class);
-			        logger.println("Job submitted to cluster. Mappers will start shortly.");
-			        
-			        logger.markStartTime(TimedEvent.HADOOP_JOB);
-			        	boolean success = job.waitForCompletion(true);
-			        logger.markEndTime(TimedEvent.HADOOP_JOB);
-			        
-			        if(success)
-			        	logger.println("Hadoop job completed sucessfully.");
-			        else
-			        	logger.println("Hadoop job completed with failure");
+						// ------------------------
+						// Delete the output if it exists.
+						// ------------------------
+						if(jobDef.isOverwrite()){
+							FileSystem fs = FileSystem.get(new URI(jobDef.getOutputUri()), config);
+							if(fs.exists(new Path(jobDef.getOutputUri())))
+								fs.delete(new Path(jobDef.getOutputUri()), true);
+						}
 
-			        if(jobDef.getInputType() == InputType.RawFileS3 || jobDef.getInputType() == InputType.RawFileCopy){
-			        	logger.println("Deleting temp demuxed data from HDFS.");
-			        	FileSystem.get(config).delete(demuxData, false);
-			        }
+						// ------------------------
+						// Run the transcode job.
+						// ------------------------
+						Job job = new Job(config);
+						job.setJobName("FFmpeg-MR Job: " + jobDef.getJobName());
+						
+						job.setInputFormatClass(SequenceFileInputFormat.class);
+						job.setMapperClass(TranscodeMapper.class);
+						
+					    job.setMapOutputKeyClass(LongWritable.class);
+					    job.setMapOutputValueClass(Chunk.class);
+					   
+					    job.setPartitionerClass(TranscodePartitioner.class);
+						job.setReducerClass(RemuxReducer.class);
+						
+						// Always use all of the available reduce slots.
+						// This pretty much assumes we are benchmarking and not sharing the cluster.
+						// Which is bad. And we have to use the old API. 
+						job.setNumReduceTasks(status.getMaxReduceTasks());
+						
+					    job.setOutputFormatClass(SequenceFileOutputFormat.class);
+					    job.setOutputKeyClass(LongWritable.class);
+					    job.setOutputValueClass(BytesWritable.class);
+					    
+				        SequenceFileInputFormat.addInputPath(job, demuxData);
+				        if(jobDef.getOutputType() == OutputType.RawFile)
+				        	SequenceFileOutputFormat.setOutputPath(job, outputData);
+				        else if(jobDef.getOutputType() == OutputType.ReducerSegments)
+				        	SequenceFileOutputFormat.setOutputPath(job, new Path(jobDef.getOutputUri()));
+				        
+				        job.setJarByClass(TranscodeJob.class);
+				        logger.println("Job submitted to cluster. Mappers will start shortly.");
+				        
+				        logger.markStartTime(TimedEvent.PROCESS_JOB);
+				        	boolean success = job.waitForCompletion(true);
+				        logger.markEndTime(TimedEvent.PROCESS_JOB);
+				        
+				        if(success)
+				        	logger.println("Hadoop job completed sucessfully.");
+				        else
+				        	logger.println("Hadoop job completed with failure");
+	
+				        if(jobDef.getInputType() == InputType.RawFile || jobDef.getInputType() == InputType.RawFileCopy){
+				        	logger.println("Deleting temp demuxed data from HDFS.");
+				        	FileSystem.get(config).delete(demuxData, false);
+				        }
 			        
-			        if(jobDef.getOutputType() == OutputType.RawFile && success)
-			        {
-			        	// Merge the reducer output to a location on the local fs.
-						File tempFile = File.createTempFile("temp-output", ".movie");
-						Path tempPath = new Path("file://" + tempFile.getAbsolutePath());
+				        if(jobDef.getOutputType() == OutputType.RawFile && success)
+				        {
+				        	// Merge the reducer output to a location on the local fs.
+							File tempFile = File.createTempFile("temp-output", ".movie");
+							Path tempPath = new Path("file://" + tempFile.getAbsolutePath());
+							
+							logger.markStartTime(TimedEvent.MERGE);
+								Merger.merge(config, outputData, tempFile);
+							logger.markEndTime(TimedEvent.MERGE);
+							
+							FileSystem.get(outputData.toUri(), config).delete(outputData, true);
+							
+							logger.markStartTime(TimedEvent.RAW_COPY_OUT);
+								FileUtils.copy(tempPath, new Path(jobDef.getOutputUri()), true, jobDef.isOverwrite(), config);
+							logger.markEndTime(TimedEvent.RAW_COPY_OUT);
+				        }
+					}
+					
+					if(jobDef.getProcessingType() == ProcessingType.FFmpeg){
+						File tempFile = File.createTempFile("temp-ffmpeg", ".movie");
+						tempFile.deleteOnExit();
+						File tempFileOutput = File.createTempFile("temp-ffmpeg-out", ".movie");
+						tempFileOutput.deleteOnExit();
 						
-						logger.markStartTime(TimedEvent.MERGE);
-							Merger.merge(config, outputData, tempFile);
-						logger.markEndTime(TimedEvent.MERGE);
-						
-						FileSystem.get(outputData.toUri(), config).delete(outputData, true);
-						
-						logger.markStartTime(TimedEvent.RAW_COPY_OUT);
-							FileUtils.copy(tempPath, new Path(jobDef.getOutputUri()), true, jobDef.isOverwrite(), config);
-						logger.markEndTime(TimedEvent.RAW_COPY_OUT);
-			        }
-			        
-			        // Set perms.
-			        Path output = new Path(jobDef.getOutputUri());
-			        FileSystem.get(output.toUri(), config).setPermission(output, new FsPermission("644"));
+						try {
+							logger.logClusterDetails(jobFlowConfig.getJobflow(), null, jobDef, null);
+							
+							// Check the overwrite.
+							FileSystem fs = FileSystem.get(new URI(jobDef.getOutputUri()), config);
+							if(fs.exists(new Path(jobDef.getOutputUri())) && !jobDef.isOverwrite())
+								throw new RuntimeException("Output file already exists - set overwrite:true to override");	
+							
+							String inputUri = jobDef.getInputUri();
+							String tempInputUri = null;
+							String tempOutputUri = null;
+							String outputUri = jobDef.getOutputUri();
+							
+							if(jobDef.getInputUri().contains("file://")){
+								tempInputUri = inputUri;
+							}
+							else{
+								tempInputUri = "file://" + tempFile.getAbsolutePath();
+							}
+							
+							if(jobDef.getOutputUri().contains("file://")){
+								tempOutputUri = outputUri;
+							}
+							else{
+								tempOutputUri = "file://" + tempFileOutput.getAbsolutePath();
+							}
+							
+							if(!inputUri.equals(tempInputUri)){
+								logger.markStartTime(TimedEvent.RAW_COPY_IN);
+									FileUtils.copy(new Path(inputUri), new Path(tempInputUri), false, true, config);
+								logger.markEndTime(TimedEvent.RAW_COPY_IN);
+							}
+							
+							logger.markStartTime(TimedEvent.PROCESS_JOB);
+								FFmpegMock.convert(config, new File(tempInputUri.substring(7)), new File(tempOutputUri.substring(7)));
+				        	logger.markEndTime(TimedEvent.PROCESS_JOB);
+				        	
+				        	if(!tempOutputUri.equals(outputUri)){
+								logger.markStartTime(TimedEvent.RAW_COPY_OUT);
+									FileUtils.copy(new Path(tempOutputUri), new Path(outputUri), true, jobDef.isOverwrite(), config);
+								logger.markEndTime(TimedEvent.RAW_COPY_OUT);
+				        	}
+							
+						} catch (Exception e) {
+							e.printStackTrace();
+							logger.println("FFmpeg job failed.");
+							Thread.sleep(5000);
+						}
+						finally {
+							tempFile.delete();
+							tempFileOutput.delete();
+						}
+					}
+
 				}
 				catch(Exception exJob){
 					logger.logException(config, exJob);
@@ -271,6 +358,7 @@ public class TranscodeJob extends Configured implements Tool {
 				}
 				finally{
 					logger.markEndTime(TimedEvent.JOB);
+					
 				}
 			}
 		}
@@ -283,6 +371,7 @@ public class TranscodeJob extends Configured implements Tool {
 			logger.logEntry("Job run complete.");
 			logger.markEndTime(TimedEvent.JOBRUN);
 			logger.flush();
+			TimeEntry.printJobTimingInfo(jobID);
 		}
 
 		return 0;
@@ -300,7 +389,9 @@ public class TranscodeJob extends Configured implements Tool {
 		else
 			throw new RuntimeException("Platform: " + System.getProperty("os.arch") + " not supported.");
 		
-		// Copy all of the native libraries to the cwd.
+		
+		
+		// Copy all of the native libraries.
 		for(URI lib : libs)
 		{
 			String[] libSplit = lib.toString().split("#");
@@ -350,10 +441,10 @@ public class TranscodeJob extends Configured implements Tool {
 	public static Configuration getConfig() {
 		if(lazyConfig ==  null){
 			lazyConfig = new Configuration();
-			lazyConfig.set("fs.s3.awsAccessKeyId", "01MDAYB509VJ53B2EK02");
-			lazyConfig.set("fs.s3.awsSecretAccessKey", "zwajpazry7Me7tnbYaw3ldoj5mbRDMFMHqYHgDmv");
-			lazyConfig.set("fs.s3n.awsAccessKeyId", "01MDAYB509VJ53B2EK02");
-			lazyConfig.set("fs.s3n.awsSecretAccessKey", "zwajpazry7Me7tnbYaw3ldoj5mbRDMFMHqYHgDmv");
+			lazyConfig.set("fs.s3.awsAccessKeyId", "AKIAI45LMHSV622K6EAA");
+			lazyConfig.set("fs.s3.awsSecretAccessKey", "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");
+			lazyConfig.set("fs.s3n.awsAccessKeyId", "AKIAI45LMHSV622K6EAA");
+			lazyConfig.set("fs.s3n.awsSecretAccessKey", "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");
 			lazyConfig.set("mapred.compress.map.output", "false");
 		}
 		return lazyConfig;

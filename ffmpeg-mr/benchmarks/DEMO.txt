@@ -1,0 +1,17 @@
+# Warm up the cluster before demo.
+fmr emr.Benchmark PerformanceTestWarmUp.json
+
+# Run the performance test using MapReduce
+fmr emr.Benchmark PerformanceTest.json
+
+# Load up the monitoring GUI to show the progress.
+fmr emr.gui.AppWindowController j-3OP7F2AUNKHAR &
+
+# Show and example of a larger job.
+fmr emr.gui.AppWindowController j-11TE3KES8BEBZ j-8CP6ZP9HKGVN &
+
+# Demo the results gatherer.
+fmr emr.TimeEntryCSVWriter file:///Users/tom/Desktop/DemoResults.csv j-3OP7F2AUNKHAR && open /Users/tom/Desktop/DemoResults.csv
+
+# Want to see the output?
+open -a /Applications/VLC.app http://ffmpeg-mr.s3.amazonaws.com/output/Test4.Demo.avi.mkv &

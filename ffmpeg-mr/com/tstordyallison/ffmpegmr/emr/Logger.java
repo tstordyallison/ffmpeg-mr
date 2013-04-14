@@ -10,11 +10,13 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.mapred.ClusterStatus;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.format.DateTimeFormat;
@@ -25,6 +27,9 @@ import com.amazonaws.services.simpledb.AmazonSimpleDB;
 import com.amazonaws.services.simpledb.AmazonSimpleDBClient;
 import com.amazonaws.services.simpledb.model.PutAttributesRequest;
 import com.amazonaws.services.simpledb.model.ReplaceableAttribute;
+import com.amazonaws.services.simpledb.model.SelectRequest;
+import com.amazonaws.services.simpledb.model.SelectResult;
+import com.amazonaws.services.simpledb.model.UpdateCondition;
 import com.tstordyallison.ffmpegmr.emr.JobflowConfiguration.JobFlow;
 
 public class Logger {
@@ -41,7 +46,7 @@ public class Logger {
 		JOB("Job"),
 		RAW_COPY_IN("RawCopyIn"),
 		DEMUX("Demux"),
-		HADOOP_JOB("HadoopJob"),
+		PROCESS_JOB("ProcessJob"),
 		MERGE("Merge"), 
 		RAW_COPY_OUT("RawCopyOut");
 
@@ -67,7 +72,7 @@ public class Logger {
 		public static boolean ENABLED = true;
 		public static boolean USE_ERR = true;
 
-		private static void println(String text)
+		public static void println(String text)
 		{
 			if(ENABLED)
 			{
@@ -81,7 +86,7 @@ public class Logger {
 				
 		}
 		
-		private static void print(String text)
+		public static void print(String text)
 		{	
 			DateTime dt = new DateTime();
 			String dtString = "[" + dt.toString("HH:mm:ss") + "] ";
@@ -95,18 +100,26 @@ public class Logger {
 		}
 	}
 	
+	private static ThreadFactory threadFactory = new ThreadFactory() {
+		@Override
+		public Thread newThread(Runnable r) {
+			Thread thread = new Thread(r, "Logging Thread");
+			thread.setDaemon(false);
+			return thread;
+		}
+	};
+	
 	private static Logger logger = new Logger(new Configuration());
+	private static ExecutorService exec = Executors.newFixedThreadPool(2, threadFactory);
 	
-	private AmazonSimpleDB sdb;
-	private static ExecutorService exec = Executors.newFixedThreadPool(2);
 	private Configuration config;
-//	private static boolean domainsCreated = true;
-	
+	private AmazonSimpleDB sdb;
+
 	public Logger(Configuration config)
 	{
 		this.config = config;
 		
-		// Connect to SDB.
+		// Setup SDB.
 		try {
 			sdb = new AmazonSimpleDBClient(new PropertiesCredentials(JobController.class
 			        .getResourceAsStream("/com/tstordyallison/ffmpegmr/emr/AwsCredentials.properties")));
@@ -201,6 +214,8 @@ public class Logger {
 			final String itemName = config.get(CONF_JOBID_NAME) + "-" + config.getInt(CONF_JOBCOUNTER_NAME, 0);
 			final String time = new DateTime(DateTimeZone.UTC).toString("yyyy-MM-dd'T'HH:mm:ss.SSS");
 			
+			println("Marking " + timerName.toString() + "/" + suffix + ":" + time);
+			
 			synchronized (exec) {
 				exec.execute(new Runnable() {
 					@Override
@@ -222,8 +237,8 @@ public class Logger {
 							if(!success){
 								if(Thread.interrupted())
 									break;
-								
-								long delay = (long) (Math.random() * (Math.pow(4, counter) * 10L));
+								long delay = (long) (Math.random() * counter * 1000L);
+								System.err.println("WARNING: Global counter increment failed. Waiting " + delay + "ms before retrying.");
 						        try {
 						        	Thread.sleep(delay);
 						        } catch (InterruptedException iex){
@@ -241,8 +256,12 @@ public class Logger {
 		}
 	}
 	
-	public void logClusterDetails(final JobFlow jobflow, final TranscodeJobDef jobDef) {
-		if(config.get(CONF_JOBID_NAME) != null && jobflow != null){
+	public void logClusterDetails(final JobFlow jobflow, final ClusterStatus status) {
+		logClusterDetails(jobflow, status, null, null);
+	}
+	
+	public void logClusterDetails(final JobFlow jobflow, final ClusterStatus status, final TranscodeJobDef jobDef, final long[] packetCounts) {
+		if(config.get(CONF_JOBID_NAME) != null){
 			final String itemName = config.get(CONF_JOBID_NAME) + "-" + config.getInt(CONF_JOBCOUNTER_NAME, 0);
 			final int mapTaskCount = config.getInt("mapred.tasktracker.map.tasks.maximum", -1);
 			synchronized (exec) {
@@ -269,11 +288,17 @@ public class Logger {
 							try {
 								counter += 1;
 								List<ReplaceableAttribute> attributes = new ArrayList<ReplaceableAttribute>();
-								attributes.add(new ReplaceableAttribute().withName("jobFlowId").withValue(jobflow.jobFlowId));
-								attributes.add(new ReplaceableAttribute().withName("instanceCount").withValue(Integer.toString(jobflow.coreInstanceCount)));
+								if(jobflow != null)
+									attributes.add(new ReplaceableAttribute().withName("jobFlowId").withValue(jobflow.jobFlowId));
+								if(status != null)
+									attributes.add(new ReplaceableAttribute().withName("instanceCount").withValue(Integer.toString(status.getTaskTrackers())));
 								attributes.add(new ReplaceableAttribute().withName("mapTaskCount").withValue(Integer.toString(mapTaskCount)));
 								attributes.add(new ReplaceableAttribute().withName("blockSize").withValue(Integer.toString(chunkSize)));
 								attributes.add(new ReplaceableAttribute().withName("fileSize").withValue(Long.toString(fileSize)));
+								if(packetCounts != null){
+									for(int i = 0; i < packetCounts.length; i++)
+										attributes.add(new ReplaceableAttribute().withName("StreamCount:" + i).withValue(Long.toString(packetCounts[i])));
+								}
 								sdb.putAttributes(new PutAttributesRequest(JOB_DOMAIN, itemName, attributes));
 								success = true;
 							} catch (Exception e) {
@@ -304,15 +329,73 @@ public class Logger {
 		
 	}
 
+	public void incrementGlobalCounter(final String counterName, final long value)
+	{
+		if(config.get(CONF_JOBID_NAME) != null && config.get(CONF_JOBCOUNTER_NAME) != null){
+			final String itemName = config.get(CONF_JOBID_NAME) + "-" + config.getInt(CONF_JOBCOUNTER_NAME, 0);
+			
+			synchronized (exec) {
+				exec.execute(new Runnable() {
+					@Override
+					public void run() {
+						
+						boolean success = false;
+						int counter = 0;
+						Exception ex = null;
+						while(!success && counter <= 10){
+							try {
+								counter += 1;
+								long currentCounter = 0;
+								String query = "SELECT `" + counterName + "` FROM `" + JOB_DOMAIN + "` WHERE itemName() = \"" + itemName + "\"";
+								SelectResult result = sdb.select(new SelectRequest(query, true));
+
+								if(result.getItems().size() == 1 && result.getItems().get(0).getAttributes().size() == 1)
+									currentCounter = Long.parseLong(result.getItems().get(0).getAttributes().get(0).getValue());
+								
+								List<ReplaceableAttribute> attributes = new ArrayList<ReplaceableAttribute>();
+								attributes.add(new ReplaceableAttribute().withReplace(true).withName(counterName).withValue(Long.toString(currentCounter + value)));
+								PutAttributesRequest par = new PutAttributesRequest(JOB_DOMAIN, itemName, attributes, 
+										currentCounter == 0 ? null : new UpdateCondition(counterName, Long.toString(currentCounter), true));
+								sdb.putAttributes(par);
+								success = true;
+							} catch (Exception e) {
+								ex = e;
+								success = false;
+							}
+							
+							if(!success){
+								if(Thread.interrupted())
+									break;
+								long delay = (long) (Math.random() * counter * 1000L);
+								System.err.println("WARNING: Global counter increment failed. Waiting " + delay + "ms before retrying.");
+						        try {
+						        	Thread.sleep(delay);
+						        } catch (InterruptedException iex){
+						        }
+							}
+						}
+						
+						if(!success && counter > 10)
+						{
+							if(ex != null)
+								ex.printStackTrace();
+							throw new RuntimeException("Failed to log timing event after 10 exp attempts (or a flush). This is a fatal error.");
+						}
+					}
+				});
+			}
+		}
+	}
+
 	public void flush()
 	{
 		synchronized (exec) {
 			exec.shutdown();
 			try {
-				exec.awaitTermination(15, TimeUnit.SECONDS);
+				exec.awaitTermination(600, TimeUnit.SECONDS);
 			} catch (InterruptedException e) {
 			}
-			exec = Executors.newFixedThreadPool(2);
+			exec = Executors.newFixedThreadPool(2, threadFactory);
 		}
 		
 	}

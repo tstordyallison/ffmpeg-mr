@@ -1,0 +1,91 @@
+{
+    "name": "Block Size Bench Test-2 machines",
+    "description": "Tests varying the block size on HDFS, using 3 threads, and using the HD Large file.",
+    "instanceIncrement": 2,
+    "endInstanceCount": 2,
+    "jobSubmissionUri": "s3n://ffmpeg-mr/job-submissions/Bench-BlockSizeBenchTest-2machines..json",
+    "resultsUri": "s3n://ffmpeg-mr/results/BlockSizeBenchTest-2machines.-20120405-211809.csv",
+    "resultsURL": "http://ffmpeg-mr.s3.amazonaws.com/results/BlockSizeBenchTest-2machines.-20120405-211809.csv",
+    "settings": {
+        "flowName": "ffmpeg-mr: Block Size Tests HD - 4Mb -\u003e 32Mb.",
+        "jobFlowID": "j-1ASLUR6MJN9YB",
+        "instanceCount": 2,
+        "instanceType": "c1.xlarge",
+        "bidPrice": "0.40",
+        "numberOfMapTasksPerMachine": 4,
+        "numberOfReduceTasksPerMachine": 4,
+        "numberOfVideoThreads": 3,
+        "instanceMarketType": "SPOT",
+        "reuseJVMTaskCount": 50,
+        "speculativeExecution": false,
+        "masterInstanceType": "m1.large",
+        "masterBidPrice": "0.30",
+        "masterMarketType": "SPOT",
+        "createNewCluster": true,
+        "debugging": false,
+        "keepClusterAlive": false,
+        "performNativeBuild": true,
+        "uploadJar": true,
+        "skipFailedJobs": true
+    },
+    "jobSubmission": {
+        "jobs": [
+            {
+                "jobName": "7. Large HD M4V Test - 32Mb",
+                "inputUri": "s3n://ffmpeg-mr/testcandidates/Test7.m4v",
+                "inputType": "RawFileCopy",
+                "outputUri": "s3n://ffmpeg-mr/output/Test7.BlockSizes32Mb.m4v.mkv",
+                "outputType": "RawFile",
+                "videoResScale": 1.0,
+                "videoCrf": 21.0,
+                "videoBitrate": 512000,
+                "audioBitrate": 64000,
+                "videoThreads": 3,
+                "overwrite": true,
+                "demuxChunkSize": 33554432
+            },
+            {
+                "jobName": "7. Large HD M4V Test - 16Mb",
+                "inputUri": "s3n://ffmpeg-mr/testcandidates/Test7.m4v",
+                "inputType": "RawFileCopy",
+                "outputUri": "s3n://ffmpeg-mr/output/Test7.BlockSizes16Mb.m4v.mkv",
+                "outputType": "RawFile",
+                "videoResScale": 1.0,
+                "videoCrf": 21.0,
+                "videoBitrate": 512000,
+                "audioBitrate": 64000,
+                "videoThreads": 3,
+                "overwrite": true,
+                "demuxChunkSize": 16777216
+            },
+            {
+                "jobName": "7. Large HD M4V Test - 8Mb",
+                "inputUri": "s3n://ffmpeg-mr/testcandidates/Test7.m4v",
+                "inputType": "RawFileCopy",
+                "outputUri": "s3n://ffmpeg-mr/output/Test7.BlockSizes8Mb.m4v.mkv",
+                "outputType": "RawFile",
+                "videoResScale": 1.0,
+                "videoCrf": 21.0,
+                "videoBitrate": 512000,
+                "audioBitrate": 64000,
+                "videoThreads": 3,
+                "overwrite": true,
+                "demuxChunkSize": 8388608
+            },
+            {
+                "jobName": "7. Large HD M4V Test - 4Mb",
+                "inputUri": "s3n://ffmpeg-mr/testcandidates/Test7.m4v",
+                "inputType": "RawFileCopy",
+                "outputUri": "s3n://ffmpeg-mr/output/Test7.BlockSizes4Mb.m4v.mkv",
+                "outputType": "RawFile",
+                "videoResScale": 1.0,
+                "videoCrf": 21.0,
+                "videoBitrate": 512000,
+                "audioBitrate": 64000,
+                "videoThreads": 3,
+                "overwrite": true,
+                "demuxChunkSize": 4194304
+            }
+        ]
+    }
+}

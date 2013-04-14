@@ -21,7 +21,7 @@ public class NativeUtil {
 		}
 		catch(UnsatisfiedLinkError e)
 		{
-			System.err.println("WARNING: loadLibrary() call for " + libname + " failed. Dependencies may also fail.");
+			//System.err.println("WARNING: loadLibrary() call for " + libname + " failed. Dependencies may also fail.");
 		}
 	}
 }

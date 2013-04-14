@@ -45,9 +45,11 @@ public class TimeEntryCSVWriter extends CsvWriter {
 		write("InstanceCount");
 		write("MapTaskCount");
 		write("JobCounter");
+		write("BlockSize");
+		write("FileSize");
 		write(Logger.TimedEvent.RAW_COPY_IN.toString());
 		write(Logger.TimedEvent.DEMUX.toString());
-		write(Logger.TimedEvent.HADOOP_JOB.toString());
+		write(Logger.TimedEvent.PROCESS_JOB.toString());
 		write(Logger.TimedEvent.MERGE.toString());
 		write(Logger.TimedEvent.RAW_COPY_OUT.toString());
 		write(Logger.TimedEvent.JOB.toString());
@@ -62,12 +64,14 @@ public class TimeEntryCSVWriter extends CsvWriter {
 		write(Integer.toString(entry.getInstanceCount()));
 		write(Integer.toString(entry.getMapTaskCount()));
 		write(Integer.toString(entry.getJobCounter()));
+		write(Integer.toString(entry.getBlockSize()));
+		write(Long.toString(entry.getFileSize()));
 		write(entry.getTimings().containsKey(Logger.TimedEvent.RAW_COPY_IN) ? 
 				Long.toString(entry.getTimings().get(Logger.TimedEvent.RAW_COPY_IN).toStandardDuration().getStandardSeconds()) : "0");
 		write(entry.getTimings().containsKey(Logger.TimedEvent.DEMUX) ? 
 				Long.toString(entry.getTimings().get(Logger.TimedEvent.DEMUX).toStandardDuration().getStandardSeconds()) : "0");
-		write(entry.getTimings().containsKey(Logger.TimedEvent.HADOOP_JOB) ? 
-				Long.toString(entry.getTimings().get(Logger.TimedEvent.HADOOP_JOB).toStandardDuration().getStandardSeconds()) : "0");
+		write(entry.getTimings().containsKey(Logger.TimedEvent.PROCESS_JOB) ? 
+				Long.toString(entry.getTimings().get(Logger.TimedEvent.PROCESS_JOB).toStandardDuration().getStandardSeconds()) : "0");
 		write(entry.getTimings().containsKey(Logger.TimedEvent.MERGE) ? 
 				Long.toString(entry.getTimings().get(Logger.TimedEvent.MERGE).toStandardDuration().getStandardSeconds()) : "0");
 		write(entry.getTimings().containsKey(Logger.TimedEvent.RAW_COPY_OUT) ? 
@@ -113,7 +117,6 @@ public class TimeEntryCSVWriter extends CsvWriter {
 		writer.close();
 		output.close();
 		fos.close();
-		fs.setPermission(path, new FsPermission("664"));
 		fs.close();
 	}
 }

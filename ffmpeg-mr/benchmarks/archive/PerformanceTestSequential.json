@@ -1,0 +1,50 @@
+{
+    "name": "Performance Test for Demo - Single",
+    "description": "Demo of Test File 7: Shutter Island, on a single machine.",
+    "instanceIncrement": 0,
+    "endInstanceCount": 0,
+    "jobSubmissionUri": "s3n://ffmpeg-mr/job-submissions/Bench-PerformanceTestforDemo-Single-j-11TE3KES8BEBZ.json",
+    "resultsUri": "s3n://ffmpeg-mr/results/PerformanceTestforDemo-Single-20120507-120936.csv",
+    "resultsURL": "http://ffmpeg-mr.s3.amazonaws.com/results/PerformanceTestforDemo-Single-20120507-120936.csv",
+    "settings": {
+        "flowName": "ffmpeg-mr: Demo - FFmpeg",
+        "jobFlowID": "j-11TE3KES8BEBZ",
+        "instanceCount": 0,
+        "instanceType": "c1.xlarge",
+        "bidPrice": "0.76",
+        "numberOfMapTasksPerMachine": 4,
+        "numberOfReduceTasksPerMachine": 4,
+        "numberOfVideoThreads": 4,
+        "instanceMarketType": "SPOT",
+        "reuseJVMTaskCount": 1,
+        "speculativeExecution": false,
+        "masterInstanceType": "c1.xlarge",
+        "masterBidPrice": "0.76",
+        "masterMarketType": "SPOT",
+        "createNewCluster": false,
+        "debugging": false,
+        "keepClusterAlive": true,
+        "performNativeBuild": false,
+        "uploadJar": false,
+        "skipFailedJobs": true
+    },
+    "jobSubmission": {
+        "jobs": [
+            {
+                "jobName": "Large HD M4V Test - FFmpeg",
+                "inputUri": "s3n://ffmpeg-mr/testcandidates/Test7.m4v",
+                "inputType": "RawFileCopy",
+                "processingType": "FFmpeg",
+                "outputUri": "s3n://ffmpeg-mr/output/Test7.m4v.mkv",
+                "outputType": "RawFile",
+                "videoResScale": 1.0,
+                "videoCrf": 21.0,
+                "videoBitrate": 0,
+                "audioBitrate": 320000,
+                "videoThreads": 0,
+                "overwrite": true,
+                "demuxChunkSize": 16777216
+            }
+        ]
+    }
+}

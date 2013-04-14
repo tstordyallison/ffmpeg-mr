@@ -36,13 +36,12 @@ public class ChunkTest {
 		}
 		else
 		{
-			
-			processFolder(new File("/Users/tom/Code/fyp/example-videos/TestCandidates/"));
-			processFolder(new File("/Users/tom/Code/fyp/example-videos/TestCandidates/"));
+			//processFolder(new File("/Users/tom/Code/fyp/example-videos/TestCandidates/"));
+			//processFolder(new File("/Users/tom/Code/fyp/example-videos/TestCandidates/"));
 	
 			//chunkWithTimer(TranscodeJob.getConfig(), "file:///Users/tom/Code/fyp/example-videos/TestLarge.m4v", "file:///Users/tom/Code/fyp/example-videos/TestLarge.m4v.seq");
 			//chunkWithTimer("file:///Users/tom/Code/fyp/example-videos/TestLarge.m4v", "file:///Users/tom/Code/fyp/example-videos/TestLarge.m4v.seq");
-			//chunkWithTimer("file:///Users/tom/Code/fyp/example-videos/TestCandidates/Test5.m4v", "file:///Users/tom/Code/fyp/example-videos/TestCandidates/Test5.m4v.seq");
+			chunkWithTimer("file:///Users/tom/Code/fyp/example-videos/TestCandidates/Test4.avi", "file:///Users/tom/Code/fyp/example-videos/TestCandidates/Test4.avi.seq");
 			//chunkWithTimer("file:///Users/tom/Code/fyp/example-videos/Test.m4v", "file:///Users/tom/Code/fyp/example-videos/Test.m4v.seq");
 			//chunkWithTimer("file:///Users/tom/Code/fyp/example-videos/TestMultiStream.m4v", "file:///Users/tom/Code/fyp/example-videos/TestMultiStream.m4v.seq");
 			//chunkWithTimer("file:///Users/tom/Code/fyp/example-videos/Test.mkv", "file:///Users/tom/Code/fyp/example-videos/Test.mkv.seq");
@@ -72,7 +71,7 @@ public class ChunkTest {
 		
 		Stopwatch stopwatch = new Stopwatch();
 		stopwatch.start();
-			Chunker.chunkInputFile(config, inputUri, hadoopUri, WriterThread.BLOCK_SIZE*2);
+			Chunker.chunkInputFile(config, inputUri, hadoopUri, (int)(WriterThread.BLOCK_SIZE)/2);
 		stopwatch.stop();
 		
 		System.out.print("Time taken for " + FileUtils.humanReadableByteCount(len, false) + ": " + stopwatch.getElapsedTime() + " ms. ");
@@ -101,7 +100,7 @@ public class ChunkTest {
 	public static long getFileSize(String hadoopUri) throws IOException
 	{
 		Configuration conf = new Configuration();
-		conf.set("fs.default.name", "s3://01MDAYB509VJ53B2EK02:zwajpazry7Me7tnbYaw3ldoj5mbRDMFMHqYHgDmv@ffmpeg-mr/");
+		conf.set("fs.default.name", "s3://AKIAI45LMHSV622K6EAA:X3lTKnuXTy0PpSTGXI3WiDB/Q5oI7lzdfPG8DifN@ffmpeg-mr/");
 		FileSystem fs = FileSystem.get(URI.create(hadoopUri), conf);
 		Path path = new Path(hadoopUri);
 		long size = fs.getFileStatus(path).getLen();

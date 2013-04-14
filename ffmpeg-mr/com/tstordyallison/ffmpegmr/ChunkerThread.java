@@ -29,7 +29,7 @@ public class ChunkerThread extends Thread {
 	public class ChunkBuffers {
 		
 		private ChunkID					endTSChunkID				= new ChunkID();
-		private long 					packetCount					= 0;
+		private List<Long>				packetCount					= new ArrayList<Long>(demuxer.getStreamCount());
 		private List<ChunkID>			chunkHistory				= new ArrayList<ChunkID>(100);
 		private List<Boolean>           streamFirstChunk			= new ArrayList<Boolean>(demuxer.getStreamCount()); 
 		private List<ByteBuffer> 		streamHeaders 				= new ArrayList<ByteBuffer>(demuxer.getStreamCount()); 		
@@ -42,6 +42,7 @@ public class ChunkerThread extends Thread {
 		{
 			for(int i = 0; i < demuxer.getStreamCount(); i++)
 			{
+				packetCount.add(0L);
 				streamFirstChunk.add(true);
 				streamHeaders.add(ByteBuffer.wrap(demuxer.getStreamData(i)));
 				currentChunks.add(new LinkedList<DemuxPacket>()); // Linked list makes quite a difference.
@@ -51,7 +52,7 @@ public class ChunkerThread extends Thread {
 		}
 
 		public void add(DemuxPacket currentPacket) {
-			packetCount += 1;
+			packetCount.set(currentPacket.streamID, packetCount.get(currentPacket.streamID) + 1);
 			currentChunks.get(currentPacket.streamID).add(currentPacket);
 			currentChunksSizes.set(currentPacket.streamID, currentChunksSizes.get(currentPacket.streamID) + currentPacket.data.length);
 			
@@ -94,6 +95,7 @@ public class ChunkerThread extends Thread {
 			chunkID.setStartTS(chunkBuffer.get(0).ts);
 			chunkID.setTbDen(chunkBuffer.get(0).tb_den);
 			chunkID.setTbNum(chunkBuffer.get(0).tb_num);
+			chunkID.setStreamType(demuxer.getStreamMediaType(streamID));
 			if(endMarker == chunkBuffer.size()){
 				// This is just an estimate. The last packet in the GOP will probably not be the last PTS.
 				DemuxPacket lastPacket = chunkBuffer.get(endMarker-1);
@@ -278,7 +280,7 @@ public class ChunkerThread extends Thread {
 		this.streamDuration = this.demuxer.getDurationMs();
 		
 		if(this.streamDuration > 0)
-			logger.println("File duration esitimate: " + PeriodFormat.getDefault().print(new Period(this.streamDuration)));
+			logger.println("File duration estimate: " + PeriodFormat.getDefault().print(new Period(this.streamDuration)));
 		
 		blockSizes = new long[this.demuxer.getStreamCount()];
 		for(int i = 0; i < this.demuxer.getStreamCount(); i++)
@@ -304,6 +306,7 @@ public class ChunkerThread extends Thread {
 	public void run() {
 		// Get new chunks from FFmpeg.
 		try{
+			boolean inChunkTooSmallState = false; // Only get the warning once!
 			DemuxPacket currentPacket = demuxer.getNextChunk();
 			while(currentPacket != null)
 			{
@@ -316,11 +319,15 @@ public class ChunkerThread extends Thread {
 					Chunk chunk = chunkBuffers.drainChunk(currentPacket.streamID);
 					
 					// If this is null, we couldnt drain a valid chunk, so we have to carry on instead.
-					if(chunk != null)
+					if(chunk != null){
 						chunkQ.put(chunk); // This will block until the queue has space.
+						inChunkTooSmallState = false;
+					}
 					else
-						if(blockSizes[currentPacket.streamID] > 0)
+						if(blockSizes[currentPacket.streamID] > 0 && !inChunkTooSmallState){
 							logger.println("WARNING: Demuxer unable to drain chunk smaller than "  + FileUtils.humanReadableByteCount(blockSizes[currentPacket.streamID], false) + ". Try a larger chunk size.");
+							inChunkTooSmallState = true;
+						}
 				}
 				
 				// Get the next packet.
@@ -358,8 +365,11 @@ public class ChunkerThread extends Thread {
 		logger.println("Demuxing complete. Thread ending.");
 	}
 
-	public long getPacketCount() {
-		return chunkBuffers.packetCount;
+	public long[] getPacketCounts() {
+		long[] packetCount = new long[chunkBuffers.packetCount.size()];
+		for(int i = 0; i < chunkBuffers.packetCount.size(); i++)
+			packetCount[i] = chunkBuffers.packetCount.get(i);
+		return packetCount;
 	}
 	
 	public long getEndTS() {

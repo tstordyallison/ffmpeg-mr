@@ -20,7 +20,7 @@ import com.tstordyallison.ffmpegmr.util.Stopwatch;
 
 public class TranscodeMapper extends Mapper<ChunkID,ChunkData,LongWritable,Chunk> {
 
-	private float videoResScale = 2;
+	private float videoResScale = 1;
 	private float videoCrf = 0;
 	private int videoBitrate = 512000;
 	private int audioBitrate = 64000;
@@ -89,14 +89,23 @@ public class TranscodeMapper extends Mapper<ChunkID,ChunkData,LongWritable,Chunk
 			    if(percentage % 25 == 0)
 			    	log(context, String.format("Chunk %d.%08d: %3d%%.", key.getStreamID(), key.getChunkNumber(), percentage));
 			}
-    		if(pkt_counter % 100 == 0)
+    		if(pkt_counter % 100 == 0){
     			context.getCounter(ProgressCounter.COMBINED_PROGRESS).increment(100);
+    			switch (key.getStreamType()) {
+					case AUDIO:
+						context.getCounter(ProgressCounter.AUDIO_PROGRESS).increment(100);
+						break;
+					case VIDEO:{
+						context.getCounter(ProgressCounter.VIDEO_PROGRESS).increment(100);
+						logger.incrementGlobalCounter("StreamProgress:" + key.getStreamID(), 100);
+						break;
+					}
+				}
+    		}
     		
     		if(pkt.splitPoint)
-    		{
     			// Empty the current buffer before adding this new packet.
     			emptyPacketBuffer(header, key, expectedChunks, currentPackets, context);
-    		}
     		
     		// Add the new packet
     		currentPackets.add(pkt);
@@ -106,14 +115,30 @@ public class TranscodeMapper extends Mapper<ChunkID,ChunkData,LongWritable,Chunk
     	emptyPacketBuffer(header, key, expectedChunks, currentPackets, context);
     	
     	context.getCounter(ProgressCounter.COMBINED_PROGRESS).increment(pkt_counter % 100);
+		switch (key.getStreamType()) {
+			case AUDIO:{
+				context.getCounter(ProgressCounter.AUDIO_PROGRESS).increment(pkt_counter % 100);
+				logger.incrementGlobalCounter("StreamProgress:" + key.getStreamID() , value.getPacketCount());
+				break;
+			}
+			case VIDEO:{
+				context.getCounter(ProgressCounter.VIDEO_PROGRESS).increment(pkt_counter % 100);
+				logger.incrementGlobalCounter("StreamProgress:" + key.getStreamID(), pkt_counter % 100);
+				break;
+			}
+		}
     	
+		context.getCounter(ProgressCounter.INPUT_PACKETS_PROCESSED).increment(value.getPacketCount());
+		
     	trans.close();
     	stopwatch.stop();
     	
     	log(context, String.format("Chunk %d.%08d: Transcoding complete (time taken: %d ms.)", key.getStreamID(), key.getChunkNumber(),  stopwatch.getElapsedTime()));
  
-		if(expectedChunks.size() > 0)
-			log(context, "WARNING: Mapper did not output the expected number of chunks. This will likely lead to a mux/merge error.");
+		if(expectedChunks.size() > 0){
+			log(context, "ERROR: Mapper did not output the expected number of chunks. This will likely lead to a mux/merge error.");
+			throw new RuntimeException("Mapper did not output the expected number of chunks. This will likely lead to a mux/merge error");
+		}
     }
 	
 	@Override
@@ -146,12 +171,13 @@ public class TranscodeMapper extends Mapper<ChunkID,ChunkData,LongWritable,Chunk
 			chunkID.setEndTS(currentPackets.get(currentPackets.size()-1).ts + currentPackets.get(currentPackets.size()-1).duration);
 			chunkID.setTbNum(currentPackets.get(0).tb_num);
 			chunkID.setTbDen(currentPackets.get(0).tb_den);
-			
+			chunkID.setStreamType(key.getStreamType());
 			chunkID.setStreamID(key.getStreamID());
 			chunkID.setStreamDuration(key.getStreamDuration());
 			
-			if(chunkID.getMillisecondsStartTs() != chunkID.getChunkNumber())
-				log(context, "WARNING: Output startTS != desired chunk point (to the nearest ms).");
+			if(chunkID.getMillisecondsStartTs() != chunkID.getChunkNumber()){
+				//log(context, "WARNING: Output startTS != desired chunk point (to the nearest ms).");
+			}
 			
 			// Build value
 			ChunkData chunkData = new ChunkData(header, currentPackets);

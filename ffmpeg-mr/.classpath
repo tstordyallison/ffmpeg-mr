@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <classpath>
-	<classpathentry excluding="build/|build/classes/|build/classes/build/|build/classes/build/classes/|build/classes/build/classes/build/|build/classes/build/classes/build/classes/|build/classes/build/classes/build/classes/build/|build/classes/build/classes/build/classes/build/classes/|build/classes/build/classes/build/classes/build/classes/build/|build/classes/build/classes/build/classes/build/classes/nbproject/|build/classes/build/classes/build/classes/nbproject/|build/classes/build/classes/nbproject/|build/classes/nbproject/|nbproject/" kind="src" path=""/>
+	<classpathentry excluding="build/|build/classes/|build/classes/build/|build/classes/build/classes/|build/classes/build/classes/build/|build/classes/build/classes/build/classes/|build/classes/build/classes/build/classes/build/|build/classes/build/classes/build/classes/build/classes/|build/classes/build/classes/build/classes/build/classes/build/|build/classes/build/classes/build/classes/build/classes/nbproject/|build/classes/build/classes/build/classes/nbproject/|build/classes/build/classes/nbproject/|build/classes/nbproject/|nbproject/|userstudy/|results/|lib/" kind="src" path=""/>
 	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
 	<classpathentry kind="con" path="com.amazonaws.eclipse.sdk.AWS_JAVA_SDK"/>
 	<classpathentry kind="lib" path="/Users/tom/Code/fyp/Dependencies/mrunit-0.8.0-incubating/mrunit-0.8.0-incubating.jar"/>
@@ -50,5 +50,10 @@
 	<classpathentry kind="lib" path="/Users/tom/Code/fyp/Dependencies/joda-time-2.0/joda-time-2.0.jar" sourcepath="/Users/tom/Code/fyp/Dependencies/joda-time-2.0/joda-time-2.0-sources.jar"/>
 	<classpathentry kind="lib" path="/Users/tom/Code/fyp/Dependencies/google-gson-2.1/gson-2.1.jar" sourcepath="/Users/tom/Code/fyp/Dependencies/google-gson-2.1/gson-2.1-sources.jar"/>
 	<classpathentry kind="lib" path="lib/javacsv.jar" sourcepath="/Users/tom/Code/fyp/Dependencies/javacsv2/src"/>
+	<classpathentry kind="lib" path="lib/forms-1.2.1.jar"/>
+	<classpathentry kind="lib" path="lib/mac_widgets_build.jar"/>
+	<classpathentry kind="lib" path="lib/miglayout15-swing.jar"/>
+	<classpathentry kind="lib" path="lib/jna-3.4.0.jar"/>
+	<classpathentry kind="lib" path="lib/vlcj-2.0.0.jar" sourcepath="/Users/tom/Code/fyp/Dependencies/vlcj-2.0.0/vlcj-2.0.0-sources.jar"/>
 	<classpathentry kind="output" path=""/>
 </classpath>

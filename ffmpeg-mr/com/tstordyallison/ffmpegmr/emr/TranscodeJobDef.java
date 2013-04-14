@@ -4,7 +4,8 @@ import com.tstordyallison.ffmpegmr.WriterThread;
 
 public class TranscodeJobDef {
 	
-	public static enum InputType {RawFileS3, RawFileCopy, Demuxed}
+	public static enum InputType {RawFile, RawFileCopy, Demuxed}
+	public static enum ProcessingType {MapReduce, FFmpeg}
 	public static enum OutputType {RawFile, ReducerSegments}
 	
 	private String jobName = "Unknown Job";
@@ -12,13 +13,15 @@ public class TranscodeJobDef {
 	private String inputUri = "";
 	private InputType inputType = InputType.Demuxed;
 	
+	private ProcessingType processingType = ProcessingType.MapReduce;
+	
 	private String outputUri = "";
 	private OutputType outputType = OutputType.ReducerSegments;
 	
 	private float videoResScale = 1;
 	private float videoCrf = 21;
 	private int videoBitrate = 512000;
-	private int audioBitrate = 64000;
+	private int audioBitrate = 128000;
 	private int videoThreads = -1;
 	
 	private boolean overwrite = false;
@@ -105,9 +108,15 @@ public class TranscodeJobDef {
 	public int getDemuxChunkSize() {
 		return demuxChunkSize;
 	}
-
 	public void setDemuxChunkSize(int demuxChunkSize) {
 		this.demuxChunkSize = demuxChunkSize;
+	}
+	public ProcessingType getProcessingType() {
+		return processingType;
+	}
+
+	public void setProcessingType(ProcessingType processingType) {
+		this.processingType = processingType;
 	}
 
 	@Override

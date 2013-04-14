@@ -6,7 +6,9 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.SortedMap;
 import java.util.SortedSet;
+import java.util.TreeMap;
 import java.util.TreeSet;
 
 import org.joda.time.DateTime;
@@ -35,13 +37,19 @@ public class TimeEntry implements Comparable<TimeEntry> {
 	private int instanceCount = -1;
 	private int mapTaskCount = -1;
 	private int blockSize = -1;
-	private int fileSize = -1;
+	private long fileSize = -1;
+	private DateTime downloadTime;
 	
 	private Map<Logger.TimedEvent, Period> timings = new HashMap<Logger.TimedEvent, Period>();
 	private Map<Logger.TimedEvent, DateTime> startTimes = new HashMap<Logger.TimedEvent, DateTime>();
 	private Map<Logger.TimedEvent, DateTime> endTimes = new HashMap<Logger.TimedEvent, DateTime>();
+	private SortedMap<Integer, ProgressFraction> streamProgress = new TreeMap<Integer, ProgressFraction>();
 	
 	public TimeEntry(Item item){
+		SortedMap<Integer, Integer> totalStreamCounts = new TreeMap<Integer, Integer>();
+		SortedMap<Integer, Integer> currentStreamProgress = new TreeMap<Integer, Integer>();
+		
+		downloadTime = new DateTime();
 		String uuid = item.getName();
 		
 		// Figure out the job id etc
@@ -79,9 +87,22 @@ public class TimeEntry implements Comparable<TimeEntry> {
 			if(name.equals("mapTaskCount"))
 				mapTaskCount = Integer.parseInt(at.getValue());
 			if(name.equals("fileSize"))
-				fileSize = Integer.parseInt(at.getValue());
+				fileSize = Long.parseLong(at.getValue());
 			if(name.equals("blockSize"))
 				blockSize = Integer.parseInt(at.getValue());
+			
+			if(name.startsWith("StreamCount") || name.startsWith("StreamProgress")){
+				int stream = 0;
+				
+				String[] split = name.split(":");
+				if(split.length > 1)
+					stream = Integer.parseInt(split[1]);
+				
+				if(name.startsWith("StreamCount"))
+					totalStreamCounts.put(stream, Integer.parseInt(at.getValue()));
+				if(name.startsWith("StreamProgress"))
+					currentStreamProgress.put(stream, Integer.parseInt(at.getValue()));
+			}
 		}
 		
 		// Calculate the timings in seconds.
@@ -94,6 +115,19 @@ public class TimeEntry implements Comparable<TimeEntry> {
 				
 				timings.put(te, new Period(start, end));
 			}
+		}
+		
+		// Calc the stream progress
+		for(Integer stream : totalStreamCounts.keySet())
+		{
+			int current = 0;
+			if(currentStreamProgress.containsKey(stream))
+				current = currentStreamProgress.get(stream);
+			
+			if(endTimes.containsKey(TimedEvent.PROCESS_JOB))
+				streamProgress.put(stream, new ProgressFraction(totalStreamCounts.get(stream), totalStreamCounts.get(stream)));
+			else
+				streamProgress.put(stream, new ProgressFraction(current, totalStreamCounts.get(stream)));
 		}
 	}
 
@@ -129,7 +163,7 @@ public class TimeEntry implements Comparable<TimeEntry> {
 		return blockSize;
 	}
 
-	public int getFileSize() {
+	public long getFileSize() {
 		return fileSize;
 	}
 
@@ -145,6 +179,14 @@ public class TimeEntry implements Comparable<TimeEntry> {
 		return Collections.unmodifiableMap(endTimes);
 	}
 
+	public DateTime getDownloadTime() {
+		return downloadTime;
+	}
+
+	public SortedMap<Integer, ProgressFraction> getStreamProgress(){
+		return Collections.unmodifiableSortedMap(this.streamProgress);
+	}
+	
 	@Override
 	public int compareTo(TimeEntry o) {
 		if(startDate == null && o.startDate == null)
@@ -168,12 +210,61 @@ public class TimeEntry implements Comparable<TimeEntry> {
         return sb.toString();
 	}
 
+	@Override
+	public int hashCode() {
+		final int prime = 31;
+		int result = 1;
+		result = prime * result + jobCounter;
+		result = prime * result + ((jobID == null) ? 0 : jobID.hashCode());
+		return result;
+	}
+
+	@Override
+	public boolean equals(Object obj) {
+		if (this == obj)
+			return true;
+		if (obj == null)
+			return false;
+		if (!(obj instanceof TimeEntry))
+			return false;
+		TimeEntry other = (TimeEntry) obj;
+		if (jobCounter != other.jobCounter)
+			return false;
+		if (jobID == null) {
+			if (other.jobID != null)
+				return false;
+		} else if (!jobID.equals(other.jobID))
+			return false;
+		return true;
+	}
+	
+	
 	// ------------------------------------------------------------------
+	public static TimeEntry getTimeEntry(String jobIDCounter){
+		List<TimeEntry> entries = getTimeEntries(jobIDCounter);
+		if(entries.size() > 0)
+			return entries.get(0);
+		else
+			return null;
+	}
 	
 	public static List<TimeEntry> getTimeEntries(String jobID){
-		SelectResult result = getSDB().select(
-				new SelectRequest("SELECT * FROM `" + Logger.JOB_DOMAIN + "` " + 
-						 "where itemName() > \"" + jobID +  "\" and itemName() < \"" + jobID + "-99999\" limit 1000"));
+		SelectResult result = null;
+		try {
+			if(jobID.contains("-")){
+				result = getSDB().select(
+						new SelectRequest("SELECT * FROM `" + Logger.JOB_DOMAIN + "` " + 
+								 "where itemName() = \"" + jobID +  "\" limit 1", true));
+			}
+			else
+			{
+				result = getSDB().select(
+						new SelectRequest("SELECT * FROM `" + Logger.JOB_DOMAIN + "` " + 
+								 "where itemName() > \"" + jobID +  "\" and itemName() < \"" + jobID + "-99999\" limit 1000", true));
+			}
+		} catch (Exception e) {
+			return null;
+		}
 		
 		List<TimeEntry> timeEntries = new ArrayList<TimeEntry>();
 		for(Item item : result.getItems())
@@ -185,7 +276,7 @@ public class TimeEntry implements Comparable<TimeEntry> {
 	public static SortedSet<TimeEntry> getTimeEntriesByFlow(String jobFlowID){
 		SelectResult result = getSDB().select(
 				new SelectRequest("SELECT * FROM `" + Logger.JOB_DOMAIN + "` " + 
-						 "where jobFlowId = \"" + jobFlowID + "\" limit 2000"));
+						 "where jobFlowId = \"" + jobFlowID + "\" limit 2000", true));
 		
 		SortedSet<TimeEntry> timeEntries = new TreeSet<TimeEntry>();
 		for(Item item : result.getItems())
@@ -225,7 +316,7 @@ public class TimeEntry implements Comparable<TimeEntry> {
 	
 	public static void main(String[] args)
 	{
-		String jobID = "a4b48934-8be6-4d4b-93e4-e795711befea";
+		String jobID = "a4b48934-8be6-4d4b-93e4-e795711befea-2";
 		printJobTimingInfo(jobID);
 	}
 }

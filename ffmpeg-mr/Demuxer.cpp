@@ -524,9 +524,6 @@ JNIEXPORT jobject JNICALL Java_com_tstordyallison_ffmpegmr_Demuxer_getNextChunkI
             if(ret != 0) return NULL;
         }
         
-        // Make sure that this isn't a VOB that has reset its TS back to 0.
-        //if(pts_last < 
-        
         // Temp for the AVPacket TPL.
         uint8_t *pkt_tpl_data;
         int pkt_tpl_size;                               
@@ -555,7 +552,7 @@ JNIEXPORT jobject JNICALL Java_com_tstordyallison_ffmpegmr_Demuxer_getNextChunkI
         if(state->pkt.pts != AV_NOPTS_VALUE)
             env->SetLongField(dpkt, ts, av_rescale_q(state->pkt.pts, state->fmt_ctx->streams[state->pkt.stream_index]->time_base, (AVRational){1, state->tb_lcm}));
         else if(state->pkt.dts != AV_NOPTS_VALUE){
-            // TODO: Sort out a properly delay here to synthesise the PTS.
+            // TODO: Sort out a properly delay here to synthesise the PTS on non-keyframes.
             env->SetLongField(dpkt, ts, av_rescale_q(state->pkt.dts, state->fmt_ctx->streams[state->pkt.stream_index]->time_base, (AVRational){1, state->tb_lcm}));
         }
         

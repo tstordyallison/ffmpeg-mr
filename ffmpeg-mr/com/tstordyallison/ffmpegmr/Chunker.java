@@ -16,16 +16,22 @@ public class Chunker {
 	public static int CHUNK_Q_LIMIT = 4;
 	
 	public static class ChunkerReport {
-		private long packetCount = 0;
+		private long[] packetCounts;
 		private long endTS = 0;
 		
-		public ChunkerReport(long packetCount, long endTS) {
-			this.packetCount = packetCount;
+		public ChunkerReport(long[] packetCounts, long endTS) {
+			this.packetCounts = packetCounts;
 			this.endTS = endTS;
 		}
 		
 		public long getPacketCount() {
-			return packetCount;
+			long total = 0;
+			for(long count : getPacketCounts())
+				total += count;
+			return total;
+		}
+		public long[] getPacketCounts() {
+			return packetCounts;
 		}
 		public long getEndTS() {
 			return endTS;
@@ -61,8 +67,7 @@ public class Chunker {
 		logger.println("Sucessfully Demuxed " + inputUri + ".");
 		logger.flush();
 		
-		ChunkerReport report = new ChunkerReport(chunker.getPacketCount(), chunker.getEndTS());
-		return report;
+		return new ChunkerReport(chunker.getPacketCounts(), chunker.getEndTS());
 	}
 		
 }

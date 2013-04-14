@@ -56,7 +56,7 @@ public class JobController {
                                               JobFlowExecutionState.TERMINATED, 
                                               JobFlowExecutionState.WAITING,
                                               JobFlowExecutionState.SHUTTING_DOWN});
-    protected static AmazonElasticMapReduce emr;
+    private static AmazonElasticMapReduce emr;
     private static AWSCredentials credentials;
 	
     static{
@@ -68,8 +68,8 @@ public class JobController {
 			throw new RuntimeException("Error reading AWS crendtials from prop file.");
 		}
         
-        emr = new AmazonElasticMapReduceClient(credentials);
-        emr.setEndpoint(EMR_ENDPOINT);
+        setEmr(new AmazonElasticMapReduceClient(credentials));
+        getEmr().setEndpoint(EMR_ENDPOINT);
     }
     
 	// ---------------------------------------------------------------------------------------------------------------
@@ -145,13 +145,27 @@ public class JobController {
 	        	
 	        	List<StepConfig> steps = new ArrayList<StepConfig>();
 	        	
-	            // This is pretty minging. 
-            	// Find any waiting clusters matching our description or give up. 
-            	if(settings.jobFlowID == null || settings.jobFlowID.isEmpty())
-            	{
-            		DescribeJobFlowsResult checker = emr.describeJobFlows((new DescribeJobFlowsRequest())
-        					.withJobFlowStates(JobFlowExecutionState.WAITING.toString()));
-		            List<JobFlowDetail> flows = checker.getJobFlows();
+	        	if(!settings.createNewCluster) {
+	        		List<JobFlowDetail> flows;
+	        		if(settings.jobFlowID != null && !settings.jobFlowID.isEmpty()){
+	        			DescribeJobFlowsResult checker = getEmr().describeJobFlows(new DescribeJobFlowsRequest()
+	        					.withJobFlowIds(settings.jobFlowID)
+	        					.withJobFlowStates(JobFlowExecutionState.WAITING.toString(), 
+	        									   JobFlowExecutionState.RUNNING.toString(), 
+	        									   JobFlowExecutionState.STARTING.toString(), 
+	        									   JobFlowExecutionState.BOOTSTRAPPING.toString()));
+			            flows = checker.getJobFlows();
+	        			
+	        		}
+	        		else
+	        		{
+	            		DescribeJobFlowsResult checker = getEmr().describeJobFlows(new DescribeJobFlowsRequest()
+	        					.withJobFlowStates(JobFlowExecutionState.WAITING.toString(), 
+	        									   JobFlowExecutionState.RUNNING.toString(), 
+	        									   JobFlowExecutionState.STARTING.toString(), 
+	        									   JobFlowExecutionState.BOOTSTRAPPING.toString()));
+			            flows = checker.getJobFlows();
+	        		}
 		            
 		            FLOW_LOOP: for(JobFlowDetail flow : flows)
 		            {
@@ -160,8 +174,6 @@ public class JobController {
 		            		
 		            		for(InstanceGroupDetail group : detail.getInstanceGroups()){
 		            			if(group.getInstanceRole().equals("MASTER")){
-		            				if(group.getInstanceRunningCount() != 1)
-		            					continue FLOW_LOOP;
 		            				if(!group.getInstanceType().equals(settings.masterInstanceType))
 		            					continue FLOW_LOOP;
 		            			}
@@ -180,16 +192,15 @@ public class JobController {
 		            	// Woop - this is a good enough match for us. 
 		            	settings.jobFlowID = flow.getJobFlowId();
 		            }
-		            
-            	}
-            	
+	        	}
+
             	if(settings.jobFlowID != null && !settings.jobFlowID.isEmpty() && steps.size() > 0){
-	            	emr.addJobFlowSteps(new AddJobFlowStepsRequest(settings.jobFlowID, steps));
+	            	getEmr().addJobFlowSteps(new AddJobFlowStepsRequest(settings.jobFlowID, steps));
 	            	Thread.sleep(2500);
             	}
-            	else
-            		if(!settings.createNewCluster)
-            			throw new RuntimeException("Could not find a matching cluster in the WAITING state.");
+//            	else
+//            		if(!settings.createNewCluster)
+//            			throw new RuntimeException("Could not find a matching cluster in the WAITING/RUNNING/STARTING/BOOTSTRAPPING state.");
 	            
 	            if((settings.jobFlowID == null || settings.jobFlowID.isEmpty()) && settings.createNewCluster)
 	            {
@@ -249,21 +260,21 @@ public class JobController {
 	                											"-s", "mapred.tasktracker.map.tasks.maximum=" + settings.numberOfMapTasksPerMachine,
 	                											"-s", "mapred.tasktracker.reduce.tasks.maximum=" + settings.numberOfReduceTasksPerMachine, 
 	                											"-m", "mapred.job.reuse.jvm.num.tasks=" + settings.reuseJVMTaskCount, 
-	                											"-s", "mapred.reduce.tasks.speculative.execution=" + settings.speculativeExecution })));
+	                											"-s", "mapred.reduce.tasks.speculative.execution=" + settings.speculativeExecution,
+	                											"-s", "mapred.map.tasks.speculative.execution=" + settings.speculativeExecution })));
 	                bootstraps.add(bsMultiSupport);
 	                
 	                BootstrapActionConfig bsSwap = new BootstrapActionConfig();
 	                bsSwap.setName("Configure swap space to alleviate memory pressure.");
 	                bsSwap.setScriptBootstrapAction(
 	                		new ScriptBootstrapActionConfig("s3://elasticmapreduce/bootstrap-actions/create-swap-file.rb", 
-	                							Arrays.asList(new String[] {"-E", "/mnt/swapfile", "2048"})));
+	                							Arrays.asList(new String[] {"-E", "/mnt/swapfile", "4096"})));
 	                bootstraps.add(bsSwap);
 	                
 	                BootstrapActionConfig bsMem = new BootstrapActionConfig();
-	                bsMem.setName("Setup the master in memory intensive mode for Chunking/Merging.");
+	                bsMem.setName("Set everything in memory intensive mode for Chunking/Merging/Reducing large binary data.");
 	                bsMem.setScriptBootstrapAction(
-	                		new ScriptBootstrapActionConfig("s3://elasticmapreduce/bootstrap-actions/run-if", 
-	                							Arrays.asList(new String[] {"instance.isMaster=true", "s3://elasticmapreduce/bootstrap-actions/configurations/latest/memory-intensive"})));
+	                		new ScriptBootstrapActionConfig("s3://ffmpeg-mr/jar/memory-intensive", Arrays.asList(new String[] {})));
 	                bootstraps.add(bsMem);
 	                
 	                if(settings.performNativeBuild)
@@ -281,7 +292,7 @@ public class JobController {
 	                request.setLogUri(S3N_LOG_URI);
 	            	request.setSteps(steps);
 	               
-	                RunJobFlowResult result = emr.runJobFlow(request);
+	                RunJobFlowResult result = getEmr().runJobFlow(request);
 	                settings.jobFlowID = result.getJobFlowId();
 	            }
 	            
@@ -321,7 +332,11 @@ public class JobController {
         	resizeStep.setActionOnFailure(ActionOnFailure.CANCEL_AND_WAIT);
         
         //System.out.println("Adding resize step...");
-		emr.addJobFlowSteps(new AddJobFlowStepsRequest(getJobFlowID(), Arrays.asList(new StepConfig[]{resizeStep})));
+		getEmr().addJobFlowSteps(new AddJobFlowStepsRequest(getJobFlowID(), Arrays.asList(new StepConfig[]{resizeStep})));
+		try {
+			Thread.sleep(1000);
+		} catch (InterruptedException e) {
+		}
     }
     
     public String addJobSubmission(String jobSubmissionUri)
@@ -336,7 +351,11 @@ public class JobController {
         	stepConfig.setActionOnFailure(ActionOnFailure.CONTINUE);
         else
         	stepConfig.setActionOnFailure(ActionOnFailure.TERMINATE_JOB_FLOW);
-		emr.addJobFlowSteps(new AddJobFlowStepsRequest(getJobFlowID(), Arrays.asList(new StepConfig[]{stepConfig})));
+		getEmr().addJobFlowSteps(new AddJobFlowStepsRequest(getJobFlowID(), Arrays.asList(new StepConfig[]{stepConfig})));
+		try {
+			Thread.sleep(1000);
+		} catch (InterruptedException e) {
+		}
 		return jobID.toString();
     }
     
@@ -350,7 +369,7 @@ public class JobController {
         	stepConfig.setActionOnFailure(ActionOnFailure.CONTINUE);
         else
         	stepConfig.setActionOnFailure(ActionOnFailure.TERMINATE_JOB_FLOW);
-		emr.addJobFlowSteps(new AddJobFlowStepsRequest(getJobFlowID(), Arrays.asList(new StepConfig[]{stepConfig})));
+		getEmr().addJobFlowSteps(new AddJobFlowStepsRequest(getJobFlowID(), Arrays.asList(new StepConfig[]{stepConfig})));
     }
     
 	public int getInstanceCount() {
@@ -418,7 +437,7 @@ public class JobController {
 	        STATUS_LOOP: while (true)
 	        {
 	            DescribeJobFlowsRequest desc = new DescribeJobFlowsRequest(Arrays.asList(new String[] { jc.getJobFlowID() }));
-	            DescribeJobFlowsResult descResult = emr.describeJobFlows(desc);
+	            DescribeJobFlowsResult descResult = getEmr().describeJobFlows(desc);
 	            for (JobFlowDetail detail : descResult.getJobFlows())
 	            {
 	                String state = detail.getExecutionStatusDetail().getState();
@@ -454,6 +473,15 @@ public class JobController {
 	    	System.err.println("Request ID: " + ase.getRequestId());
 	    }
 	        
+	}
+
+	
+	public static AmazonElasticMapReduce getEmr() {
+		return emr;
+	}
+
+	private static void setEmr(AmazonElasticMapReduce emr) {
+		JobController.emr = emr;
 	}
 
 }

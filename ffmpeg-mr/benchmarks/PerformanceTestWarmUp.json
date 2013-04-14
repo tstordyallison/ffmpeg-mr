@@ -1,0 +1,28 @@
+{
+    "name": "Performance Test for Demo - MapReduce",
+    "description": "Demo of Test File 4: On a cluster of 2.",
+    "instanceIncrement": 0,
+    "endInstanceCount": 0,
+    "settings": {
+        "flowName": "ffmpeg-mr: Demo - MapReduce",
+        "jobFlowID": "j-3OP7F2AUNKHAR",
+        "instanceCount": 2,
+        "instanceType": "c1.xlarge",
+        "bidPrice": "1.50",
+        "numberOfMapTasksPerMachine": 4,
+        "numberOfReduceTasksPerMachine": 4,
+        "numberOfVideoThreads": 4,
+        "instanceMarketType": "SPOT",
+        "reuseJVMTaskCount": 1,
+        "speculativeExecution": false,
+        "masterInstanceType": "m1.large",
+        "masterBidPrice": "1.50",
+        "masterMarketType": "SPOT",
+        "createNewCluster": true,
+        "debugging": false,
+        "keepClusterAlive": true,
+        "performNativeBuild": false,
+        "uploadJar": false,
+        "skipFailedJobs": true
+    }
+}

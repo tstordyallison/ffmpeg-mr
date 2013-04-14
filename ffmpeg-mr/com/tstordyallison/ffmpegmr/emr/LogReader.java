@@ -57,23 +57,30 @@ public class LogReader implements Runnable {
 				time = startTime.toDateTime(DateTimeZone.UTC).toString("yyyy-MM-dd'T'HH:mm:ss.SSS");
 			else
 				time = entries.last().getTimestampRaw();
-		
-			// Subsequent downloads.
-			SelectResult result = sdb.select(
-					new SelectRequest("SELECT * FROM `" + LOGGING_DOMAIN + 
-							"` WHERE `JobID` = \"" + jobID + "\"" +
-							" AND `Time` > \"" + time +"\" ORDER BY `Time` ASC limit 1000"));
 			
-			for(Item item : result.getItems())
-			{
-				LogEntry entry = new LogEntry(item);
-				if(!entries.contains(entry)){
-					entries.add(entry);
-					System.out.println(entry.toString());
-				}
-			}		
+			String sql = "SELECT * FROM `" + LOGGING_DOMAIN + 
+					"` WHERE `JobID` = \"" + jobID + "\"" +
+					" AND `Time` > \"" + time +"\" ORDER BY `Time` ASC limit 25";
 			
-			if(entries.size() > 0 && entries.last().getMessage().contains("Job run complete."))
+			System.out.println("Polling: " + sql);
+			
+			String nextToken = null;
+			do{
+				SelectResult result = sdb.select(new SelectRequest(sql).withNextToken(nextToken));
+				
+				for(Item item : result.getItems())
+				{
+					LogEntry entry = new LogEntry(item);
+					if(!entries.contains(entry)){
+						entries.add(entry);
+						System.out.println(entry.toString());
+					}
+				}	
+				
+				nextToken = result.getNextToken();
+			} while (nextToken != null);
+			
+			if(entries.size() > 0 && entries.last().getMessage().contains("JobRun/EndTime"))
 				break;
 			
 			try {
@@ -90,8 +97,7 @@ public class LogReader implements Runnable {
 		pollInterval = ms;
 	}
 	
-	public void end()
-	{
+	public void end(){
 		ending = true;
 	}
 	
@@ -100,10 +106,10 @@ public class LogReader implements Runnable {
 		if(args.length == 0)
 		{
 			args = new String[1];
-			args[0] = "048477ed-1b97-4813-acad-4b9d6bb6b29a";
+			args[0] = "0ba88b4f-d30b-4260-990f-fddf995b103a";
 		}
 		
-		LogReader reader = new LogReader(args[0], new DateTime());
+		LogReader reader = new LogReader(args[0]);
 		reader.run();
 	}
 	

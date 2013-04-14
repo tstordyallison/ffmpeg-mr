@@ -59,7 +59,7 @@ public class JobflowConfiguration {
 			instance = gson.fromJson(new BufferedReader(new FileReader(INSTANCE_INFO_FILE)),JobflowConfiguration.Instance.class);
 
 			// We must also go and get an up to date value for the coreInstanceCount using the API.
-			DescribeJobFlowsResult jobFlowDescription = JobController.emr.describeJobFlows(new DescribeJobFlowsRequest()
+			DescribeJobFlowsResult jobFlowDescription = JobController.getEmr().describeJobFlows(new DescribeJobFlowsRequest()
 					.withJobFlowIds(jobflow.jobFlowId));
 			JobFlowDetail jobFlowDetail = jobFlowDescription.getJobFlows().get(0);
 			Collection<InstanceGroupDetail> instanceGroups = jobFlowDetail.getInstances().getInstanceGroups();

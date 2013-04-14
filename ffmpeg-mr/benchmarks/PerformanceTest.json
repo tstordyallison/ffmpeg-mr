@@ -1,0 +1,50 @@
+{
+    "name": "Performance Test for Demo - MapReduce",
+    "description": "Demo of Test File 4: On a cluster of 2.",
+    "instanceIncrement": 0,
+    "endInstanceCount": 0,
+    "jobSubmissionUri": "s3n://ffmpeg-mr/job-submissions/Bench-PerformanceTestforDemo-MapReduce-j-3OP7F2AUNKHAR.json",
+    "resultsUri": "s3n://ffmpeg-mr/results/PerformanceTestforDemo-MapReduce-20120722-194747.csv",
+    "resultsURL": "http://ffmpeg-mr.s3.amazonaws.com/results/PerformanceTestforDemo-MapReduce-20120722-194747.csv",
+    "settings": {
+        "flowName": "ffmpeg-mr: Demo - MapReduce",
+        "jobFlowID": "j-3OP7F2AUNKHAR",
+        "instanceCount": 2,
+        "instanceType": "c1.xlarge",
+        "bidPrice": "0.76",
+        "numberOfMapTasksPerMachine": 4,
+        "numberOfReduceTasksPerMachine": 4,
+        "numberOfVideoThreads": 4,
+        "instanceMarketType": "SPOT",
+        "reuseJVMTaskCount": 1,
+        "speculativeExecution": false,
+        "masterInstanceType": "m1.large",
+        "masterBidPrice": "0.30",
+        "masterMarketType": "SPOT",
+        "createNewCluster": false,
+        "debugging": false,
+        "keepClusterAlive": true,
+        "performNativeBuild": false,
+        "uploadJar": false,
+        "skipFailedJobs": true
+    },
+    "jobSubmission": {
+        "jobs": [
+            {
+                "jobName": "AVI Test - MR",
+                "inputUri": "s3n://ffmpeg-mr/testcandidates/Test4.avi",
+                "inputType": "RawFileCopy",
+                "processingType": "MapReduce",
+                "outputUri": "s3n://ffmpeg-mr/output/Test4.Demo.avi.mkv",
+                "outputType": "RawFile",
+                "videoResScale": 1.0,
+                "videoCrf": 21.0,
+                "videoBitrate": 0,
+                "audioBitrate": 320000,
+                "videoThreads": 0,
+                "overwrite": true,
+                "demuxChunkSize": 8388608
+            }
+        ]
+    }
+}

@@ -41,7 +41,7 @@ public class TransTest {
 		}
 		else
 		{
-			runMapper("file:///Users/tom/Code/fyp/example-videos/TestCandidates/Test1.wmv.seq", "file:///Users/tom/Code/fyp/example-videos/Test1.wmv.seq.mapped");
+			runMapper("file:///Users/tom/Code/fyp/example-videos/TestCandidates/Test5.m4v.seq", "file:///Users/tom/Code/fyp/example-videos/Test5.m4v.seq.mapped");
 		}
 	}
 	

@@ -34,10 +34,7 @@ typedef struct TranscoderState {
     int             image_cursor; // Position in the TPL chunk data array. 
     
     long        *chunk_points; // Ordered list of timestamps (in the stream base), that we must split on.
-    long        *encoder_pts_offsets; // List of the offsets that exist between the chunk point PTS values and the output PTS values.
-                                      // Size is chunk_points_size;. Only used when encoding audio.
     size_t      chunk_points_size;
-    int         chunk_points_cursor_dec;
     int         chunk_points_cursor_enc;
     int         chunk_points_cursor_out;
     AVRational  chunk_tb;
@@ -83,10 +80,8 @@ typedef struct TranscoderState {
         image_cursor = 0;
         
         chunk_points = NULL;
-        encoder_pts_offsets = NULL;
         
         chunk_points_size = 0;
-        chunk_points_cursor_dec = 0;
         chunk_points_cursor_enc = 0;
         chunk_points_cursor_out = 0;
         
@@ -138,12 +133,6 @@ typedef struct TranscoderState {
         {
             free(chunk_points);
             chunk_points = NULL;
-        }
-        
-        if(encoder_pts_offsets != NULL)
-        {
-            free(encoder_pts_offsets);
-            encoder_pts_offsets = NULL;
         }
         
         if(decoder != NULL)
@@ -491,39 +480,6 @@ static int decode_packet(JNIEnv *env, TranscoderState *state)
             int frame_size = enc->frame_size;
             if (av_fifo_size(state->fifo) >= frame_bytes)
             {
-                
-                // If a chunk point lies in the frame we are about to output, truncate it. 
-                // (We might get lucky and just have it perfect!)
-                if (state->chunk_points_cursor_dec < state->chunk_points_size && 
-                    state->decoder_pts < state->chunk_points[state->chunk_points_cursor_dec] &&
-                    state->chunk_points[state->chunk_points_cursor_dec] < (state->decoder_pts + frame_size)) {
-
-                    // We will output all the frame until the chunk point (exclusive).
-                    frame_size = (state->chunk_points[state->chunk_points_cursor_dec] - state->decoder_pts);  // TODO: Have a proper think about this.
-                    frame_bytes = frame_size * av_get_bytes_per_sample(enc->sample_fmt) * enc->channels;
-                    
-                    // Calculate the new PTS offset that we have caused - this value will be substracted by the encoder when it calculates the PTS.
-                    state->encoder_pts_offsets[state->chunk_points_cursor_dec] = state->encoder->frame_size - frame_size;
-
-                    if(DEBUG)
-                        fprintf(stderr, "Chunk point caused audio frame split at %ld.\n", state->chunk_points[state->chunk_points_cursor_dec]);
-                    
-                    // Increment the chunker array.
-                    state->chunk_points_cursor_dec += 1;
-                    
-                    // WARNING: This might be garbling the audio. We will need to fix it in the remuxer.
-                    // WARNING: We might also need to add some slience here too to help us figure stuff out. 
-                }
-                else if (state->chunk_points_cursor_dec < state->chunk_points_size && 
-                         state->decoder_pts == state->chunk_points[state->chunk_points_cursor_dec])
-                {
-                    if(DEBUG)
-                        fprintf(stderr, "PERFECT audio chunk point at %ld!\n", state->chunk_points[state->chunk_points_cursor_dec]);
-                    
-                    // Increment the chunker array.
-                    state->chunk_points_cursor_dec += 1;
-                }
-                
                 // Alloc a buffer for our new frame.
                 uint8_t *audio_buf = (uint8_t*)malloc(frame_bytes);
                 
@@ -578,9 +534,6 @@ static int decode_packet(JNIEnv *env, TranscoderState *state)
                         int fifo_bytes = av_fifo_size(state->fifo);
                         if (fifo_bytes > 0) {
                             
-                            // TODO: Chunk points are not supported yet when flushing!
-                            // FIX ME!!!!
-                            
                             // Alloc some space for the frame.
                             int frame_bytes = fifo_bytes;
                             uint8_t *audio_buf = (uint8_t*)malloc(frame_bytes);
@@ -611,6 +564,9 @@ static int decode_packet(JNIEnv *env, TranscoderState *state)
                             // Set the pts.
                             frame->pts = state->decoder_pts;
                             
+                            // Increment out pts counter. 
+                            state->decoder_pts += frame->nb_samples;
+                            
                             // Return with the new frame in the raw_audio.
                             return 0;
                             
@@ -629,7 +585,7 @@ static int decode_packet(JNIEnv *env, TranscoderState *state)
                         }
                     }
                     
-                    // Set the starting pts if we need to.
+                    // Set the starting pts.
                     if(state->decoder_pts < 0){
                         state->encoder_pts = 
                         state->decoder_pts = av_rescale_q(state->input_packet->pts, state->input_tb, state->decoder->time_base);
@@ -710,10 +666,10 @@ JNIEXPORT jint JNICALL Java_com_tstordyallison_ffmpegmr_Transcoder_initWithBytes
     if(video_res_scale <= 0)
         video_res_scale = 1;
     
-    if(video_crf <= 0)
+    if(video_crf < 0)
         video_crf = 21;
     
-    if(video_bitrate <= 0)
+    if(video_bitrate < 0)
         video_bitrate = 512000;
     
     if(audio_bitrate <= 0)
@@ -734,15 +690,10 @@ JNIEXPORT jint JNICALL Java_com_tstordyallison_ffmpegmr_Transcoder_initWithBytes
     // Copy over the chunk points into memory from the JVM.
     state->chunk_points_size = env->GetArrayLength(chunk_points);
     state->chunk_points = (long *)malloc(sizeof(jlong)* state->chunk_points_size);
-    state->encoder_pts_offsets = (long *)malloc(sizeof(jlong)* state->chunk_points_size);
     env->GetLongArrayRegion(chunk_points, 0, (jint)state->chunk_points_size, (jlong *)state->chunk_points);
     env->DeleteLocalRef(chunk_points);
     
     state->chunk_tb = (AVRational){chunk_tb_num, chunk_tb_den};
-    
-    // Zero the offsets.
-    for(int i = 0; i < state->chunk_points_size; i++) 
-        state->encoder_pts_offsets[i]=0;
     
     // Go through the data and identify the TPL images that we are going to read.
     tpl_gather_image_list(state->data, state->data_size, &(state->image_list), &(state->image_list_size));
@@ -784,7 +735,7 @@ JNIEXPORT jint JNICALL Java_com_tstordyallison_ffmpegmr_Transcoder_initWithBytes
                 state->encoder->keyint_min = 2;
                 state->encoder->max_b_frames = 3;
                 state->encoder->thread_count = video_threads;
-                if(video_crf){
+                if(video_crf > 0){
                     char buf[10];
                     sprintf(buf, "%2.2f", video_crf);
                     av_dict_set(&copts, "crf", buf, 0);
@@ -806,10 +757,6 @@ JNIEXPORT jint JNICALL Java_com_tstordyallison_ffmpegmr_Transcoder_initWithBytes
                 
                 if(initWithBytesThrowNonZero(avcodec_open2(state->encoder, encoder_codec, &copts), "Error opening encoder codec.", state, env)) return -1;
                 
-                
-                // Chunk point warning.
-                if(state->chunk_points_size > 0)
-                    fprintf(stderr, "WARNING: Chunk points in video are experimental.\n");
             }
             else
             {
@@ -827,7 +774,7 @@ JNIEXPORT jint JNICALL Java_com_tstordyallison_ffmpegmr_Transcoder_initWithBytes
                 AVDictionary *copts= NULL;
                 state->encoder = avcodec_alloc_context3(encoder_codec);
                 state->encoder->flags |= CODEC_FLAG_GLOBAL_HEADER;
-                state->encoder->bit_rate = audio_bitrate * state->decoder->channels;
+                state->encoder->bit_rate = audio_bitrate;
                 state->encoder->sample_fmt = state->decoder->sample_fmt;
                 state->encoder->sample_rate = state->decoder->sample_rate;
                 state->encoder->channels = state->decoder->channels;
@@ -841,7 +788,6 @@ JNIEXPORT jint JNICALL Java_com_tstordyallison_ffmpegmr_Transcoder_initWithBytes
                 }
                 
                 if(initWithBytesThrowNonZero(avcodec_open2(state->encoder, encoder_codec, &copts), "Error opening encoder codec.", state, env)) return -1;
-                
             }
             else
             {
@@ -922,8 +868,6 @@ JNIEXPORT jobject JNICALL Java_com_tstordyallison_ffmpegmr_Transcoder_getNextPac
         switch (state->encoder->codec_type) {
             case AVMEDIA_TYPE_VIDEO:
             {
-                //return NULL;
-                
                 int got_pkt = 0;
                 while(!got_pkt)
                 {
@@ -1055,12 +999,14 @@ JNIEXPORT jobject JNICALL Java_com_tstordyallison_ffmpegmr_Transcoder_getNextPac
                             av_freep(&state->raw_audio); // This sets raw_audio to NULL as well for the flush.
                         else
                         {
-                            getNextPacket_tidy(state, 0);
+                            getNextPacket_tidy(state, 0) ;
                             return NULL;
                         }
                     }
                     
                     // Encode the new frame.
+                    if(state->raw_audio)
+                        state->encoder->reordered_opaque = state->raw_audio->nb_samples;
                     ret = avcodec_encode_audio2(state->encoder, &output_pkt, state->raw_audio, &got_pkt);
                     
                     // Free the raw audio - FIXME - There is probably a better way to free this. But for now - we just do it internally.
@@ -1074,24 +1020,13 @@ JNIEXPORT jobject JNICALL Java_com_tstordyallison_ffmpegmr_Transcoder_getNextPac
                             
                             int frame_size = state->encoder->frame_size;
                             
-                            if (state->chunk_points_cursor_enc < state->chunk_points_size && 
-                                state->encoder_pts <= state->chunk_points[state->chunk_points_cursor_enc] &&
-                                state->chunk_points[state->chunk_points_cursor_enc] < (state->encoder_pts + state->encoder->frame_size)) {
-                                
-                                // This is the chunk that was made shorter and preceeds a split point.
-                                frame_size -= state->encoder_pts_offsets[state->chunk_points_cursor_enc];
-                                
-                                state->chunk_points_cursor_enc += 1;
-                                
-                            }
-                            
                             if(output_pkt.pts == AV_NOPTS_VALUE)
                                 output_pkt.pts = state->encoder_pts;
                             
                             if(output_pkt.dts == AV_NOPTS_VALUE)
                                 output_pkt.dts = state->encoder_pts;
                             
-                            if(state->encoder->coded_frame->key_frame)
+                            if(state->encoder->coded_frame->key_frame) 
                                 output_pkt.flags |= AV_PKT_FLAG_KEY;
                             
                             output_pkt.duration = frame_size;
@@ -1173,9 +1108,13 @@ JNIEXPORT jobject JNICALL Java_com_tstordyallison_ffmpegmr_Transcoder_getNextPac
         env->SetLongField(dpkt, tb_num, state->chunk_tb.num);
         env->SetLongField(dpkt, tb_den, state->chunk_tb.den);
         
-        // Set the split point if we forced this to be an I-frame/the packet after a audio split.
+        // Set the split point if we forced this to be an I-frame/the packet after an audio split.
         if (state->chunk_points_cursor_out < state->chunk_points_size &&
-            output_pkt.pts >= state->chunk_points[state->chunk_points_cursor_out]) {
+            output_pkt.pts >= state->chunk_points[state->chunk_points_cursor_out] &&
+            state->encoder_frame_count > 1) { // FIXME: This is a massive hack. The reducer/demuxer doesnt 
+                                              // know about the expected streams, so we have to *ENSURE* that it 
+                                              // always gets every stream. It would usually be valid to not allow this frame
+                                              // as it is inaccurate, but we need to ensure the split.
             if(DEBUG)
                 fprintf(stderr, "Marking split point: pkt.pts=%lld, chunkpoint=%ld\n", 
                             output_pkt.pts, 

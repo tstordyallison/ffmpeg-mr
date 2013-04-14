@@ -1,0 +1,18 @@
+{
+    "jobs": [
+         {
+            "jobName" : "Local Test",
+            "inputUri": "file:///Users/tom/Code/fyp/example-videos/TestCandidates/Test3.mp4",
+            "inputType": "RawFile",
+            "outputUri": "file:///Users/tom/Code/fyp/example-videos/Test3.mp4.mkv",
+            "outputType": "RawFile",
+            "videoResScale": 1.0,
+            "videoCrf": 21.0,
+            "videoBitrate": 0,
+            "audioBitrate": 192000,
+            "videoThreads": -1,
+            "overwrite": true,
+            "demuxChunkSize": 8388608
+         }
+    ]
+}

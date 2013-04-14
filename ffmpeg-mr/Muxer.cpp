@@ -180,7 +180,7 @@ JNIEXPORT jbyteArray JNICALL Java_com_tstordyallison_ffmpegmr_Remuxer_muxChunks(
     AVOutputFormat *output_format = av_guess_format("matroska", "filename.mkv", NULL);
     AVFormatContext *output_format_context = NULL;
     
-    // Create an output file AVFormatContext and open the file for writing to the filesystem.
+    // Create an output file AVFormatContext and open the file for writing to the filesystem (dynamic buffer).
     avformat_alloc_output_context2(&output_format_context, output_format, NULL, NULL);
     if (!&output_format_context) {
         throw_new_exception(env, "Unable to create output context.");
@@ -191,7 +191,7 @@ JNIEXPORT jbyteArray JNICALL Java_com_tstordyallison_ffmpegmr_Remuxer_muxChunks(
     output_format_context->pb = output_io_context;
     
     // ------------------------------------------------------------------------------------------
-    // Open up each of the stream based on the header sent with the 
+    // Open up each of the stream based on the header sent with the chunk.
     
     for (int i = 0; i < nb_chunks; i++) {
         // Read in the stream from the chunk.

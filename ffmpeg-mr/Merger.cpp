@@ -156,9 +156,9 @@ static int RawBuffer_Read(/*RawInputStreamOpaque*/ void *opaque, uint8_t *buf, i
     bytes_to_read = abs(bytes_to_read);
     
     if(bytes_to_read > 0){
-        if(DEBUG_PRINT_CRAZY) 
-            fprintf(stderr, "Reading: %ld bytes, Current Position: %lu bytes, Remaining: %lu, Remaining after: %lu\n", 
-                            bytes_to_read, info->pos, info->length-info->pos, info->length-(info->pos+bytes_to_read));
+        //if(DEBUG_PRINT_CRAZY) 
+            //fprintf(stderr, "Reading: %ld bytes, Current Position: %lu bytes, Remaining: %lu, Remaining after: %lu\n", 
+              //              bytes_to_read, info->pos, info->length-info->pos, info->length-(info->pos+bytes_to_read));
         memcpy(buf, &(info->data[info->pos]), bytes_to_read);
         info->pos += bytes_to_read;
         return bytes_to_read;
@@ -333,6 +333,9 @@ static void process_segment(JNIEnv *env, MergerState *state, AVFormatContext *in
     // Read and then write each of the frames to the new file.
     while(!av_read_frame(input_format_ctx, pkt))
     {
+        if(DEBUG_PRINT_CRAZY){
+            fprintf(stderr, "Reading packet to merge for stream %d (dts=%lld, pts=%lld, duration=%d, size=%d)\n", pkt->stream_index, pkt->dts, pkt->pts, pkt->duration, pkt->size);
+        }
 
         if (pkt->dts != AV_NOPTS_VALUE)
             state->last_dts[pkt->stream_index] = pkt->dts = av_rescale_q(pkt->dts, input_format_ctx->streams[pkt->stream_index]->time_base, state->output_format_context->streams[pkt->stream_index]->time_base);
@@ -347,18 +350,20 @@ static void process_segment(JNIEnv *env, MergerState *state, AVFormatContext *in
             pkt->duration = av_rescale_q(pkt->duration, input_format_ctx->streams[pkt->stream_index]->time_base,  state->output_format_context->streams[pkt->stream_index]->time_base);
             if(pkt->duration > 0)
                 state->last_duration[pkt->stream_index] = pkt->duration;
+        else
+            if(state->last_duration[pkt->stream_index]> 0)
+                pkt->duration = state->last_duration[pkt->stream_index];
         }
         
         if(DEBUG_PRINT_CRAZY){
-            fprintf(stderr, "Writing packet to merge for stream %d (dts=%lld, pts=%lld, size=%d)\n", pkt->stream_index, pkt->dts, pkt->pts, pkt->size);
+            fprintf(stderr, "Writing packet to merge for stream %d (dts=%lld, pts=%lld, duration=%d, size=%d)\n", pkt->stream_index, pkt->dts, pkt->pts, pkt->duration, pkt->size);
         }
         
         int ret = av_interleaved_write_frame(state->output_format_context, pkt);
         av_free_packet(pkt); av_init_packet(pkt);
         
-        if(DEBUG && ret != 0){
+        if(DEBUG_PRINT && ret != 0){
             fprintf(stderr, "Error writing frame (skippped): ret=%d\n", ret);
-            print_av_error(ret);
         }
     }
     
@@ -450,6 +455,7 @@ JNIEXPORT void JNICALL Java_com_tstordyallison_ffmpegmr_Merger_addSegment___3BJJ
         // Dealloc the input data and close the AVIOContext.
         av_free(input_format_ctx->pb);
         avformat_close_input(&input_format_ctx);
+        av_free(data_raw);
         
     }
     else
