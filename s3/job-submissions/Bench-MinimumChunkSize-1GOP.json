@@ -1,0 +1,74 @@
+{
+  "jobs": [
+    {
+      "jobName": "3. Small MP4 Test (Raw Copy)",
+      "inputUri": "s3n://ffmpeg-mr/testcandidates/Test3.mp4",
+      "inputType": "RawFileCopy",
+      "outputUri": "s3n://ffmpeg-mr/output/Test3.mp4.mkv",
+      "outputType": "RawFile",
+      "videoResScale": 1.0,
+      "videoCrf": 21.0,
+      "videoBitrate": 512000,
+      "audioBitrate": 64000,
+      "videoThreads": -1,
+      "overwrite": true,
+      "demuxGOPBlocks": true
+    },
+    {
+      "jobName": "4. Medium AVI Test (Raw Copy)",
+      "inputUri": "s3n://ffmpeg-mr/testcandidates/Test4.avi",
+      "inputType": "RawFileCopy",
+      "outputUri": "s3n://ffmpeg-mr/output/Test4.avi.mkv",
+      "outputType": "RawFile",
+      "videoResScale": 1.0,
+      "videoCrf": 21.0,
+      "videoBitrate": 512000,
+      "audioBitrate": 64000,
+      "videoThreads": -1,
+      "overwrite": true,
+      "demuxGOPBlocks": true
+    },
+    {
+      "jobName": "5. Medium M4V Test (Raw Copy)",
+      "inputUri": "s3n://ffmpeg-mr/testcandidates/Test5.m4v",
+      "inputType": "RawFileCopy",
+      "outputUri": "s3n://ffmpeg-mr/output/Test5.m4v.mkv",
+      "outputType": "RawFile",
+      "videoResScale": 1.0,
+      "videoCrf": 21.0,
+      "videoBitrate": 512000,
+      "audioBitrate": 64000,
+      "videoThreads": -1,
+      "overwrite": true,
+      "demuxGOPBlocks": true
+    },
+    {
+      "jobName": "6. HD M4V Test (Raw Copy)",
+      "inputUri": "s3n://ffmpeg-mr/testcandidates/Test6.m4v",
+      "inputType": "RawFileCopy",
+      "outputUri": "s3n://ffmpeg-mr/output/Test6.m4v.mkv",
+      "outputType": "RawFile",
+      "videoResScale": 1.0,
+      "videoCrf": 21.0,
+      "videoBitrate": 512000,
+      "audioBitrate": 64000,
+      "videoThreads": -1,
+      "overwrite": true,
+      "demuxGOPBlocks": true
+    },
+    {
+      "jobName": "7. Large HD M4V Test (Raw Copy)",
+      "inputUri": "s3n://ffmpeg-mr/testcandidates/Test7.m4v",
+      "inputType": "RawFileCopy",
+      "outputUri": "s3n://ffmpeg-mr/output/Test7.m4v.mkv",
+      "outputType": "RawFile",
+      "videoResScale": 1.0,
+      "videoCrf": 21.0,
+      "videoBitrate": 512000,
+      "audioBitrate": 64000,
+      "videoThreads": -1,
+      "overwrite": true,
+      "demuxGOPBlocks": true
+    }
+  ]
+}

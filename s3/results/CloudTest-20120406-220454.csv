@@ -1,0 +1,4 @@
+JobID,JobFlowID,InstanceCount,MapTaskCount,JobCounter,BlockSize,FileSize,RawCopyIn,Demux,ProcessJob,Merge,RawCopyOut,Job,JobRun
+08601f98-6c7e-4a02-afd5-dac678cc37f,j-6DC4DY9Z7ZOC,0,4,0,-1,-1,0,0,0,0,0,0,0
+08601f98-6c7e-4a02-afd5-dac678cc37f,j-6DC4DY9Z7ZOC,0,4,1,16777216,256818137,8,4,275,4,11,304,0
+08601f98-6c7e-4a02-afd5-dac678cc37f,j-6DC4DY9Z7ZOC,0,4,2,16777216,2946850,0,0,45,0,2,49,0

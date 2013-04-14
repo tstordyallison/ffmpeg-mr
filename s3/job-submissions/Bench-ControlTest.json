@@ -1,0 +1,19 @@
+{
+  "jobs": [
+    {
+      "jobName": "8. XLarge HD M4V Test",
+      "inputUri": "s3n://ffmpeg-mr/testcandidates/Test8.m4v",
+      "inputType": "RawFileCopy",
+      "processingType": "MapReduce",
+      "outputUri": "s3n://ffmpeg-mr/output/Test8.m4v.mkv",
+      "outputType": "RawFile",
+      "videoResScale": 1.0,
+      "videoCrf": 21.0,
+      "videoBitrate": 0,
+      "audioBitrate": 320000,
+      "videoThreads": -1,
+      "overwrite": true,
+      "demuxChunkSize": 25165824
+    }
+  ]
+}

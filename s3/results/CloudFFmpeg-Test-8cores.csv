@@ -1,0 +1,6 @@
+JobID,JobFlowID,InstanceCount,MapTaskCount,JobCounter,BlockSize,FileSize,RawCopyIn,Demux,ProcessJob,Merge,RawCopyOut,Job,JobRun
+72bcab3f-51af-43db-b9df-ad9200b6bfe,j-33WNM36FZEMY6,0,4,0,-1,-1,0,0,0,0,0,0,0
+72bcab3f-51af-43db-b9df-ad9200b6bfe,j-33WNM36FZEMY6,0,4,1,16777216,256818137,8,0,208,0,8,224,0
+72bcab3f-51af-43db-b9df-ad9200b6bfe,j-33WNM36FZEMY6,0,4,2,16777216,2946850,0,0,5,0,2,8,0
+72bcab3f-51af-43db-b9df-ad9200b6bfe,j-33WNM36FZEMY6,0,4,3,8388608,256818137,8,4,281,6,10,310,0
+72bcab3f-51af-43db-b9df-ad9200b6bfe,j-33WNM36FZEMY6,0,4,4,8388608,2946850,0,1,48,0,2,52,0

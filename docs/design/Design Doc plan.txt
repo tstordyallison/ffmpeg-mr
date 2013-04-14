@@ -1,0 +1,59 @@
+1. Abstract (needs checked)
+
+2. Introduction
+ - What the project is about (from lit survey and spec)?
+ - What is the problem domain (background on MapReduce and Transcoding)?
+ - What is the purpose of the project?/Deliverables and Aims (e.g. what are the questions I want to answer)
+
+3. Design
+ - Functional Requirements
+	  - Transcodes video and audio file to different codecs/containers using MapReduce for the computation.
+
+ - Non-Functional Requirements
+ 	  - (Performance targets - this is what we are investigating...)
+     - Compression overhead target - no more than 10% of the size of the control.
+     - Quality targets (e.g. maintaining the quality) - there should be no difference when encoding at comparable settings. User study to confirm.
+     - Support for use in EMR
+        - Linux support! (Mac OS for Debugging)
+        - Hadoop support - most popular + supported on EMR.
+     
+     - Adheres to the MapReduce paradigm - uses the reduce effectively (e.g. not missing, or only a single reducer) 
+         - Probably slightly less reducers than the number of slots on chosen for the cluster.
+
+ - Development Plan ("Description of tools used")
+     - Development environment 
+         - Mac OS/Ubuntu Linux
+         - Xcode + Eclipse with dual debuggers (gdb and java)
+     - Target platforms
+        - Cross compilation! VM for the linux lib.
+     - Aim to do the work in phases
+         - Initial sample prototypes in native code
+         - JNI boundaries to built there after
+         - Demux system
+         - Map and Reduce system
+         - Overall job submission for a complete transcode.
+     - Only a single developer, so no real code integration issues.
+     - git used for source control throughout.
+     - Unit Testing to be performed through JUnit on Java side, and UnitTest++ for the C++.
+          - MapReduce lends itself nicely for unit testing - both the map and reduce functions can be used outside of the overall system, in a standard JVM.
+          - The C++ code will be tested in sections - the serialisation library using UnitTest++, and the Demuxer, Transcoder and Remuxer from a JVM using JUnit. 
+
+ - High Level Overview
+ 		- Inside of the MR Job (with diagram)
+     		- Each of the MapReduce phases
+     		- Clear as to how each of the phases link together and how we get the desired output.
+     - Cloud Workflow (with diagram)
+         - Data transfer to S3 (or whatever), pull into MR job, output to local HDFS (with no replication on), move operation back to destination.
+
+
+ - Low Level Overview 
+     - Talk about the Demux, Map and Reduce in detail. Key Points:
+         - JNI boundary (with diagram)
+             - DirectMappedMemory usage 
+         - Chunking implementation 
+						(with diagrams - the split from a stream time perspective, and a data perspective, and reduce perspective)
+             - GOP padding for Open GOP and for multi video streams
+             - When we split, we tag the output split points.
+             - Timestamp info from the FFmpeg side brought into each DemuxChunk.
+             - Chunkpoints from other streams that appear in the file before the point we are at now, and overlap with this chunk, are stored in the meta data for this chunk, so that the output can align with them in the reducer split. This gives us many more smaller chunk points that actually align in the output, and that we can then use for the reducer. 
+						- Note: the chosen chunk size still dictates the number of reducers that actually get used. If we were to choose a huge number of reducers, many of them would simply go unused, as there would not be enough distinct groups of keys to run the reducer on. 

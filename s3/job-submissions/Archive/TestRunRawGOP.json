@@ -1,0 +1,30 @@
+{
+    "jobs": [
+        {
+            "jobName" : "2. Small AVI Test from S3 (Raw Copy)",
+            "inputUri": "s3n://ffmpeg-mr/testcandidates/Test2.avi",
+            "inputType": "RawFileCopy",
+            "outputUri": "s3n://ffmpeg-mr/output/Test2.avi.mkv",
+            "outputType": "RawFile",
+            "overwrite": true,
+            "videoResScale": 1,
+            "videoCrf": 21,
+            "videoBitrate": 0,
+            "audioBitrate": 64000,
+            "demuxGOPBlocks": true
+        },
+        {
+            "jobName" : "2. Small AVI Test - Half Resolution (Raw Copy)",
+            "inputUri": "s3n://ffmpeg-mr/testcandidates/Test2.avi",
+            "inputType": "RawFileCopy",
+            "outputUri": "s3n://ffmpeg-mr/output/Test2Half.avi.mkv",
+            "outputType": "RawFile",
+            "overwrite": true,
+            "videoResScale": 0.5,
+            "videoCrf": 20,
+            "videoBitrate": 0,
+            "audioBitrate": 64000,
+            "demuxGOPBlocks": true
+        }
+    ]
+}

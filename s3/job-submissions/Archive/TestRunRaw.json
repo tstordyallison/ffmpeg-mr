@@ -1,0 +1,124 @@
+{
+    "jobs": [
+        {
+            "jobName" : "1. WMV Test (Raw Copy)",
+            "inputUri": "s3n://ffmpeg-mr/testcandidates/Test1.wmv",
+            "inputType": "RawFileCopy",
+            "outputUri": "s3n://ffmpeg-mr/output/Test1.wmv.mkv",
+            "outputType": "RawFile",
+            "overwrite": true,
+            "videoResScale": 1,
+            "videoCrf": 21,
+            "videoBitrate": 0,
+            "audioBitrate": 64000
+        },
+        {
+            "jobName" : "1. WMV Test - Half Resolution (Raw Copy)",
+            "inputUri": "s3n://ffmpeg-mr/testcandidates/Test1.wmv",
+            "inputType": "RawFileCopy",
+            "outputUri": "s3n://ffmpeg-mr/output/Test1Half.wmv.mkv",
+            "outputType": "RawFile",
+            "overwrite": true,
+            "videoResScale": 0.5,
+            "videoCrf": 20,
+            "videoBitrate": 0,
+            "audioBitrate": 64000
+        },
+        {
+            "jobName" : "2. Small AVI Test from S3 (Raw Copy)",
+            "inputUri": "s3n://ffmpeg-mr/testcandidates/Test2.avi",
+            "inputType": "RawFileCopy",
+            "outputUri": "s3n://ffmpeg-mr/output/Test2.avi.mkv",
+            "outputType": "RawFile",
+            "overwrite": true,
+            "videoResScale": 1,
+            "videoCrf": 21,
+            "videoBitrate": 0,
+            "audioBitrate": 64000
+        },
+        {
+            "jobName" : "2. Small AVI Test - Half Resolution (Raw Copy)",
+            "inputUri": "s3n://ffmpeg-mr/testcandidates/Test2.avi",
+            "inputType": "RawFileCopy",
+            "outputUri": "s3n://ffmpeg-mr/output/Test2Half.avi.mkv",
+            "outputType": "RawFile",
+            "overwrite": true,
+            "videoResScale": 0.5,
+            "videoCrf": 20,
+            "videoBitrate": 0,
+            "audioBitrate": 64000
+        },
+        {
+            "jobName" : "3. Small MP4 Test (Raw Copy)",
+            "inputUri": "s3n://ffmpeg-mr/testcandidates/Test3.mp4",
+            "inputType": "RawFileCopy",
+            "outputUri": "s3n://ffmpeg-mr/output/Test3.mp4.mkv",
+            "outputType": "RawFile",
+            "overwrite": true,
+            "videoResScale": 1,
+            "videoCrf": 21,
+            "videoBitrate": 0,
+            "audioBitrate": 64000
+        },
+        {
+            "jobName" : "3. Small MP4 Test - Half Resolution (Raw Copy)",
+            "inputUri": "s3n://ffmpeg-mr/testcandidates/Test3.mp4",
+            "inputType": "RawFileCopy",
+            "outputUri": "s3n://ffmpeg-mr/output/Test3Half.mp4.mkv",
+            "outputType": "RawFile",
+            "overwrite": true,
+            "videoResScale": 0.5,
+            "videoCrf": 20,
+            "videoBitrate": 0,
+            "audioBitrate": 64000
+        },
+        {
+            "jobName" : "4. Medium AVI Test (Raw Copy)",
+            "inputUri": "s3n://ffmpeg-mr/testcandidates/Test4.avi",
+            "inputType": "RawFileCopy",
+            "outputUri": "s3n://ffmpeg-mr/output/Test4.avi.mkv",
+            "outputType": "RawFile",
+            "overwrite": true,
+            "videoResScale": 1,
+            "videoCrf": 21,
+            "videoBitrate": 0,
+            "audioBitrate": 64000
+        },
+        {
+            "jobName" : "4. Medium AVI Test - Half Resolution (Raw Copy)",
+            "inputUri": "s3n://ffmpeg-mr/testcandidates/Test4.avi",
+            "inputType": "RawFileCopy",
+            "outputUri": "s3n://ffmpeg-mr/output/Test4Half.avi.mkv",
+            "outputType": "RawFile",
+            "overwrite": true,
+            "videoResScale": 0.5,
+            "videoCrf": 20,
+            "videoBitrate": 0,
+            "audioBitrate": 64000
+        },
+        {
+            "jobName" : "5. Medium M4V Test (Raw Copy)",
+            "inputUri": "s3n://ffmpeg-mr/testcandidates/Test5.m4v",
+            "inputType": "RawFileCopy",
+            "outputUri": "s3n://ffmpeg-mr/output/Test5.m4v.mkv",
+            "outputType": "RawFile",
+            "overwrite": true,
+            "videoResScale": 1,
+            "videoCrf": 21,
+            "videoBitrate": 0,
+            "audioBitrate": 64000
+        },
+        {
+            "jobName" : "5. Medium M4V Test - Half Resolution (Raw Copy)",
+            "inputUri": "s3n://ffmpeg-mr/testcandidates/Test5.m4v",
+            "inputType": "RawFileCopy",
+            "outputUri": "s3n://ffmpeg-mr/output/Test5Half.m4v.mkv",
+            "outputType": "RawFile",
+            "overwrite": true,
+            "videoResScale": 1,
+            "videoCrf": 21,
+            "videoBitrate": 0,
+            "audioBitrate": 64000
+        }
+    ]
+}

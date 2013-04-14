@@ -1,0 +1,64 @@
+{
+  "jobs": [
+    {
+      "jobName": "Avatar HD File Test",
+      "inputUri": "s3n://ffmpeg-mr/testcandidates/Avatar.mov",
+      "inputType": "RawFileCopy",
+      "processingType": "FFmpeg",
+      "outputUri": "s3n://ffmpeg-mr/output/AvatarCloud3kFFmpeg.mkv",
+      "outputType": "RawFile",
+      "videoResScale": 1.0,
+      "videoCrf": 0.0,
+      "videoBitrate": 3000000,
+      "audioBitrate": 192000,
+      "videoThreads": -1,
+      "overwrite": true,
+      "demuxChunkSize": 16777216
+    },
+    {
+      "jobName": "Mobile File Test",
+      "inputUri": "s3n://ffmpeg-mr/testcandidates/MobileVideo.mov",
+      "inputType": "RawFileCopy",
+      "processingType": "FFmpeg",
+      "outputUri": "s3n://ffmpeg-mr/output/MobileVideoFFmpeg.mkv",
+      "outputType": "RawFile",
+      "videoResScale": 1.0,
+      "videoCrf": 0.0,
+      "videoBitrate": 500000,
+      "audioBitrate": 128000,
+      "videoThreads": -1,
+      "overwrite": true,
+      "demuxChunkSize": 16777216
+    },
+    {
+      "jobName": "Avatar HD File Test",
+      "inputUri": "s3n://ffmpeg-mr/testcandidates/Avatar.mov",
+      "inputType": "RawFileCopy",
+      "processingType": "MapReduce",
+      "outputUri": "s3n://ffmpeg-mr/output/AvatarCloud3k.mkv",
+      "outputType": "RawFile",
+      "videoResScale": 1.0,
+      "videoCrf": 0.0,
+      "videoBitrate": 3000000,
+      "audioBitrate": 192000,
+      "videoThreads": -1,
+      "overwrite": true,
+      "demuxChunkSize": 8388608
+    },
+    {
+      "jobName": "Mobile File Test",
+      "inputUri": "s3n://ffmpeg-mr/testcandidates/MobileVideo.mov",
+      "inputType": "RawFileCopy",
+      "processingType": "MapReduce",
+      "outputUri": "s3n://ffmpeg-mr/output/MobileVideo.mkv",
+      "outputType": "RawFile",
+      "videoResScale": 1.0,
+      "videoCrf": 0.0,
+      "videoBitrate": 500000,
+      "audioBitrate": 128000,
+      "videoThreads": -1,
+      "overwrite": true,
+      "demuxChunkSize": 8388608
+    }
+  ]
+}

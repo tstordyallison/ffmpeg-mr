@@ -1,0 +1,28 @@
+{
+    "jobs": [
+         {
+            "jobName" : "Avatar HD File Test",
+            "inputUri": "s3n://ffmpeg-mr/testcandidates/Avatar.mov",
+            "inputType": "RawFileCopy",
+            "outputUri": "s3n://ffmpeg-mr/output/AvatarCloud3k.mkv",
+            "outputType": "RawFile",
+            "overwrite": true,
+            "videoResScale": 1,
+            "videoCrf": 0,
+            "videoBitrate": 3000000,
+            "audioBitrate": 96000
+         },
+		 {
+            "jobName" : "Mobile File Test",
+            "inputUri": "s3n://ffmpeg-mr/testcandidates/MobileVideo.mov",
+            "inputType": "RawFileCopy",
+            "outputUri": "s3n://ffmpeg-mr/output/MobileVideo.mkv",
+            "outputType": "RawFile",
+            "overwrite": true,
+            "videoResScale": 1,
+            "videoCrf": 0,
+            "videoBitrate": 500000,
+            "audioBitrate": 96000
+         }
+    ]
+}

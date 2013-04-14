@@ -1,0 +1,60 @@
+{
+  "jobs": [
+    {
+      "jobName": "7. Large HD M4V Test - 32Mb",
+      "inputUri": "s3n://ffmpeg-mr/testcandidates/Test7.m4v",
+      "inputType": "RawFileCopy",
+      "outputUri": "s3n://ffmpeg-mr/output/Test7.BlockSizes32Mb.m4v.mkv",
+      "outputType": "RawFile",
+      "videoResScale": 1.0,
+      "videoCrf": 21.0,
+      "videoBitrate": 512000,
+      "audioBitrate": 64000,
+      "videoThreads": 3,
+      "overwrite": true,
+      "demuxChunkSize": 33554432
+    },
+    {
+      "jobName": "7. Large HD M4V Test - 16Mb",
+      "inputUri": "s3n://ffmpeg-mr/testcandidates/Test7.m4v",
+      "inputType": "RawFileCopy",
+      "outputUri": "s3n://ffmpeg-mr/output/Test7.BlockSizes16Mb.m4v.mkv",
+      "outputType": "RawFile",
+      "videoResScale": 1.0,
+      "videoCrf": 21.0,
+      "videoBitrate": 512000,
+      "audioBitrate": 64000,
+      "videoThreads": 3,
+      "overwrite": true,
+      "demuxChunkSize": 16777216
+    },
+    {
+      "jobName": "7. Large HD M4V Test - 8Mb",
+      "inputUri": "s3n://ffmpeg-mr/testcandidates/Test7.m4v",
+      "inputType": "RawFileCopy",
+      "outputUri": "s3n://ffmpeg-mr/output/Test7.BlockSizes8Mb.m4v.mkv",
+      "outputType": "RawFile",
+      "videoResScale": 1.0,
+      "videoCrf": 21.0,
+      "videoBitrate": 512000,
+      "audioBitrate": 64000,
+      "videoThreads": 3,
+      "overwrite": true,
+      "demuxChunkSize": 8388608
+    },
+    {
+      "jobName": "7. Large HD M4V Test - 4Mb",
+      "inputUri": "s3n://ffmpeg-mr/testcandidates/Test7.m4v",
+      "inputType": "RawFileCopy",
+      "outputUri": "s3n://ffmpeg-mr/output/Test7.BlockSizes4Mb.m4v.mkv",
+      "outputType": "RawFile",
+      "videoResScale": 1.0,
+      "videoCrf": 21.0,
+      "videoBitrate": 512000,
+      "audioBitrate": 64000,
+      "videoThreads": 3,
+      "overwrite": true,
+      "demuxChunkSize": 4194304
+    }
+  ]
+}

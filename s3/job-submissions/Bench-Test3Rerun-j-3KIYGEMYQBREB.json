@@ -1,0 +1,35 @@
+{
+  "jobs": [
+    {
+      "jobName": "3. Small MP4 Test - AB",
+      "inputUri": "s3n://ffmpeg-mr/testcandidates/Test3.mp4",
+      "inputType": "RawFileCopy",
+      "processingType": "MapReduce",
+      "outputUri": "s3n://ffmpeg-mr/output/Test3-TB-MR.mp4.mkv",
+      "outputType": "RawFile",
+      "videoResScale": 1.0,
+      "videoCrf": 0.0,
+      "videoBitrate": 400000,
+      "audioBitrate": 128000,
+      "videoThreads": -1,
+      "overwrite": true,
+      "demuxChunkSize": 8388608
+    },
+    {
+      "jobName": "3. Small MP4 Test - CRF",
+      "inputUri": "s3n://ffmpeg-mr/testcandidates/Test3.mp4",
+      "inputType": "RawFileCopy",
+      "processingType": "MapReduce",
+      "outputUri": "s3n://ffmpeg-mr/output/Test3-CRF-MR.mp4.mkv",
+      "outputType": "RawFile",
+      "videoResScale": 1.0,
+      "videoCrf": 21.0,
+      "videoBitrate": 0,
+      "audioBitrate": 128000,
+      "videoThreads": -1,
+      "overwrite": true,
+      "demuxChunkSize": 8388608
+    },
+    null
+  ]
+}

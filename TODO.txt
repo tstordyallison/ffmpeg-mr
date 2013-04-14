@@ -1,0 +1,50 @@
+Transcoder:
+   - Audio timestamps - issues - something is still causing us to drop now and then.
+		
+TranscodeJob 
+	- Test the global threads option is working properly when local video threads = -1.
+	- Caching:
+		- RawCopyIn JobRun Cache.
+		- Demux JobRun Cache.
+	- Prereq speed up:
+		- Demux, CopyIn, Merge, and CopyOut operations each happen in a background thread, and 
+		  begin when the JobRun is submitted. They continue whilst the distributed work is happening,
+		  so that the files are ready as soon as the cluster is. That way we save money :)
+
+Reducer:
+	- Issue when merging resized HD video - 1.4Gb file - test after various fixes to see if repeatable. 
+		- Slave was under a lot of stress: could have been a transient memory allocation issue.
+
+Analysis:
+	Results:
+		- Use of 8 single threaded vs 4 two threaded vs 4 three threaded 
+									(done - 4 threaded wins - they are background threads!)
+				- Test files 3 - 6.
+				- Cluster sizes 2, 4, 6, 8.
+				- One time for each type (three in total).
+				
+		- Use of CRF vs bitrate on libx264 - for the PSNR/SSIM analysis.
+				- Test files 3 - 6.
+				- Cluster size 2.
+				- One time for CRF, one time for bitrate target.
+		
+		- Control files! 
+			- Run in the same threading mode, on a c1.xlarge (what we term as '1 node/machine').
+			- Build in a 'process' option to the TranscodeJobDef, which allows for a standard ffmpeg run.
+			- Also run in fake Hadoop mode, to give us an idea of what our overhead is vs ffmpeg.
+				
+	Evaluation:
+		- SSIM/PSNR on chunk boundaries - is it affected? Mainly when using CRF output
+			- Single encode on the avatar trailer - look at the chunk points. 
+		- Frame size graphs (I/B/P) comparing against reference files encoding sequentially using FFmpeg.
+			- Same avatar encode as above.
+		- Overall file size comparisons with control files.
+		- User study results - can anyone tell any difference?
+				- Middle portion of Avatar Video 
+				- Middle portion of Mrs Doubtfire
+-----------------
+
+Add section to report discussing:
+	CRF with small chunks vs Target bitrate with >8mb chunks. vs  Possible future 2 pass
+
+Think about speed (=>chunk size) vs quality in these cases.

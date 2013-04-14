@@ -1,0 +1,36 @@
+Introduce your project (Keynote Slides = 7 mins)
+--------------------------------------------------
+Keynote presentation.
+	- Background
+	- Research Question
+	- Deliverables
+	- Analysis
+	- (lead into Demo)
+	- Cloud Architecture (whilst running demo)
+	- MapReduce Conceptual Overview (whilst running demo)
+
+Demonstrate your implementation. Answer the examiners’ questions (13 mins).
+--------------------------------------------------
+Demo of a single machine vs. 19 machines in the cloud.
+
+1. Start single machine processing, using FFmpeg reference.
+2. Start MR processing.
+3. Briefly go through the Transcode Job def file, and show what we are about to launch/transcode.
+4. Point out on the Cloud Diagram where the data is, and briefly what is about to happen.
+5. Walkthorugh the Cloud diagram to explain what is happening.
+6. Walkthorugh the MR diagram to show what is happening conceptually.
+7. Bring up the GUI.
+8. Let the examiners play with the monitoring application, and see the job progressing.
+
+
+Q&A (10 mins)
+----
+	Why did you choose MapReduce?
+	Why didn’t you choose just build something using MPI/Custom Java/etc?
+	What was the most useful thing you read?
+	How did you evaluate the performance/quality?
+	What was the most difficult or most interesting part of the work?
+	What would you do differently in a second attempt? 
+	How would you extend the project if you had more time?
+	Why is this of interest to the research community in the area of Parallel Video Transcoding?
+	Why is your project of wider interest?
