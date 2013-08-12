@@ -1,6 +1,7 @@
 MapReduce Audio and Video Transcoding
-See: <https://github.com/tstordyallison/ffmpeg-mr/blob/master/docs/paper/Final%20Paper.pdf?raw=true>
 ---------------------------------------
+
+See: <https://github.com/tstordyallison/ffmpeg-mr/blob/master/docs/paper/Final%20Paper.pdf?raw=true>
 
 Submitted as part of the degree of Computer Science to the Board of Examiners in the Department of Engineering and Computing Sciences, Durham University in Summer 2012.
 
